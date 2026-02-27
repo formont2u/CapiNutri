@@ -1,0 +1,392 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — {{ date_str }}{% endblock %}
+
+{% block content %}
+
+<!-- Date nav -->
+<div class="date-nav">
+  <a href="{{ url_for('dashboard', date_str=prev_day) }}" class="date-arrow"><i class="bi bi-chevron-left"></i></a>
+  <div class="date-center">
+    <div class="date-main">{{ d.strftime('%A %d %B %Y')|capitalize }}</div>
+    {% if date_str == today() %}<div class="date-today-badge">Aujourd'hui</div>{% endif %}
+  </div>
+  <a href="{{ url_for('dashboard', date_str=next_day) }}" class="date-arrow"><i class="bi bi-chevron-right"></i></a>
+  <a href="{{ url_for('week_view') }}" class="btn btn-sm btn-outline-secondary ms-3">
+    <i class="bi bi-calendar3-week"></i> Semaine
+  </a>
+</div>
+
+<!-- ── Top row: calorie ring + macros ── -->
+{% set net_kcal = (totals.kcal or 0) - burned %}
+{% set goal_kcal = goals.kcal or 2000 %}
+{% set pct_kcal = [((totals.kcal or 0) / goal_kcal * 100), 100]|min %}
+
+<div class="dash-top row g-3 mb-3">
+
+  <!-- Calorie ring -->
+  <div class="col-md-4">
+    <div class="panel d-flex flex-column align-items-center py-4">
+      <div class="kcal-ring-wrap">
+        <svg class="kcal-ring" viewBox="0 0 120 120">
+          <circle class="ring-bg"  cx="60" cy="60" r="50" />
+          <circle class="ring-fill {{ 'ring-over' if (totals.kcal or 0) > goal_kcal }}"
+                  cx="60" cy="60" r="50"
+                  stroke-dasharray="{{ pct_kcal * 3.14159 }} 314.159"
+                  stroke-dashoffset="0" />
+        </svg>
+        <div class="ring-center">
+          <div class="ring-num">{{ (totals.kcal or 0)|int }}</div>
+          <div class="ring-unit">kcal</div>
+          <div class="ring-goal">/ {{ goal_kcal|int }}</div>
+        </div>
+      </div>
+      {% if burned > 0 %}
+      <div class="burn-badge mt-2">
+        <i class="bi bi-lightning-fill"></i> −{{ burned|int }} kcal brûlées
+      </div>
+      <div class="net-kcal mt-1">Net : {{ net_kcal|int }} kcal</div>
+      {% endif %}
+      <div class="remaining-label mt-2">
+        {% set remaining = goal_kcal - (totals.kcal or 0) + burned %}
+        {% if remaining > 0 %}
+          <span style="color:#4caf50">{{ remaining|int }} kcal restantes</span>
+        {% else %}
+          <span style="color:#e53935">{{ (remaining * -1)|int }} kcal de trop</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Macro bars -->
+  <div class="col-md-8">
+    <div class="panel h-100">
+      <div class="panel-title"><i class="bi bi-bar-chart-fill"></i> Macronutriments</div>
+      {% for field, color in [('protein_g','#4a90e2'),('carbs_g','#f5a623'),('fat_g','#e8571a')] %}
+      {% set label = NUTRIENT_LABELS[field][0] %}
+      {% set unit  = NUTRIENT_LABELS[field][1] %}
+      {% set val   = (totals[field] or 0) %}
+      {% set goal  = (goals.get(field) or RDI[field]) %}
+      {% set pct   = [(val / goal * 100), 100]|min %}
+      <div class="dash-macro-row">
+        <div class="dash-macro-label">{{ label }}</div>
+        <div class="dash-macro-bar-wrap">
+          <div class="dash-macro-bar" style="width:{{ pct }}%;background:{{ color }};
+               {{ 'opacity:.6;background:#e53935' if val > goal }}"></div>
+        </div>
+        <div class="dash-macro-val">
+          <span style="color:{{ color }};font-weight:700">{{ val|round(1) }}{{ unit }}</span>
+          <span style="color:#aaa"> / {{ goal|int }}{{ unit }}</span>
+        </div>
+      </div>
+      {% endfor %}
+
+      <!-- Secondary nutrients -->
+      <div class="secondary-nutr mt-3">
+        {% for field in ['sugars_g','fiber_g','saturated_g','sodium_mg'] %}
+        {% set val  = (totals.get(field) or 0) %}
+        {% set rdi  = RDI.get(field, 1) %}
+        {% set pct  = [(val / rdi * 100), 100]|min if rdi else 0 %}
+        {% set label, unit = NUTRIENT_LABELS[field] %}
+        <div class="sec-nutr-item">
+          <div class="sec-nutr-label">{{ label }}</div>
+          <div class="sec-nutr-bar-wrap">
+            <div class="sec-nutr-bar" style="width:{{ pct }}%;
+                 {{ 'background:#e53935' if val > rdi else 'background:#aaa' }}"></div>
+          </div>
+          <div class="sec-nutr-val">{{ val|round(1) }}<span>{{ unit }}</span></div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Food log + Add food + Exercise row ── -->
+<div class="row g-3">
+
+  <!-- Food log by meal -->
+  <div class="col-lg-7">
+    <div class="panel">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="panel-title mb-0"><i class="bi bi-journal-text"></i> Journal alimentaire</div>
+        <button class="btn btn-sm btn-accent" data-bs-toggle="collapse" data-bs-target="#addFoodPanel">
+          <i class="bi bi-plus-lg"></i> Ajouter
+        </button>
+      </div>
+
+      <!-- Add food form (collapsible) -->
+      <div class="collapse mb-3" id="addFoodPanel">
+        <div class="add-food-box">
+          <form method="post" action="{{ url_for('log_food_add') }}" id="addFoodForm">
+            <input type="hidden" name="date_str" value="{{ date_str }}">
+            <div class="row g-2 mb-2">
+              <div class="col-6">
+                <label class="form-label-sm">Repas</label>
+                <select class="form-select form-select-sm" name="meal_type">
+                  {% for key, label in MEAL_TYPES.items() %}
+                  <option value="{{ key }}">{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-6">
+                <label class="form-label-sm">Portions</label>
+                <input class="form-control form-control-sm" name="servings" type="number" min="0.1" step="0.5" value="1">
+              </div>
+            </div>
+
+            <!-- Tabs: recipe vs manual -->
+            <div class="add-tabs">
+              <button type="button" class="add-tab active" data-tab="recipe">Depuis une recette</button>
+              <button type="button" class="add-tab" data-tab="manual">Ingrédient / aliment</button>
+            </div>
+
+            <div class="add-tab-content active" id="tabRecipe">
+              <select class="form-select form-select-sm" name="recipe_id" id="recipeSelect">
+                <option value="">-- Choisir une recette --</option>
+                {% for r in recipes %}
+                <option value="{{ r.id }}" data-kcal="{{ r.total_kcal or '' }}">
+                  {{ r.name }} {% if r.total_kcal %}({{ r.total_kcal|int }} kcal){% endif %}
+                </option>
+                {% endfor %}
+              </select>
+              <div class="nutr-preview mt-2" id="recipeNutrPreview" style="display:none"></div>
+            </div>
+
+            <div class="add-tab-content" id="tabManual">
+              <input class="form-control form-control-sm mb-2" name="label" placeholder="ex. Yaourt grec 0%, 2 oeufs…">
+              <div class="manual-nutr-grid">
+                {% for field in ['kcal','protein_g','carbs_g','fat_g'] %}
+                {% set label, unit = NUTRIENT_LABELS[field] %}
+                <div>
+                  <label class="form-label-sm">{{ label }}</label>
+                  <div class="input-group input-group-sm">
+                    <input class="form-control" name="nutr_{{ field }}" type="number" min="0" step="any" placeholder="0">
+                    <span class="input-group-text">{{ unit }}</span>
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+              <details class="mt-2">
+                <summary style="font-size:.75rem;color:#888;cursor:pointer">Détails nutritionnels avancés</summary>
+                <div class="manual-nutr-grid mt-2">
+                  {% for field in ['sugars_g','fiber_g','saturated_g','sodium_mg','calcium_mg','iron_mg','vit_c_mg','vit_d_mcg'] %}
+                  {% set label, unit = NUTRIENT_LABELS[field] %}
+                  <div>
+                    <label class="form-label-sm">{{ label }}</label>
+                    <div class="input-group input-group-sm">
+                      <input class="form-control" name="nutr_{{ field }}" type="number" min="0" step="any" placeholder="0">
+                      <span class="input-group-text">{{ unit }}</span>
+                    </div>
+                  </div>
+                  {% endfor %}
+                </div>
+              </details>
+            </div>
+
+            <button type="submit" class="btn btn-accent btn-sm w-100 mt-3">
+              <i class="bi bi-plus-circle"></i> Ajouter au journal
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Meal sections -->
+      {% set shown_any = false %}
+      {% for mt_key, mt_label in MEAL_TYPES.items() %}
+      {% set meal_entries = by_meal.get(mt_key, []) %}
+      {% if meal_entries %}
+      {% set shown_any = true %}
+      <div class="meal-section">
+        <div class="meal-title">{{ mt_label }}</div>
+        {% for e in meal_entries %}
+        <div class="log-entry">
+          <div class="log-entry-name">{{ e.label }}
+            {% if e.servings != 1 %}<span class="log-servings">× {{ e.servings }}</span>{% endif %}
+          </div>
+          <div class="log-entry-kcal">{% if e.kcal %}{{ e.kcal|int }} kcal{% endif %}</div>
+          <form method="post" action="{{ url_for('log_food_delete', entry_id=e.id) }}">
+            <input type="hidden" name="date_str" value="{{ date_str }}">
+            <button class="log-del-btn" title="Supprimer"><i class="bi bi-x"></i></button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% endfor %}
+
+      {% if not entries %}
+      <div class="empty-log">
+        <i class="bi bi-egg-fried"></i>
+        <p>Rien de loggé pour cette journée.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Right column: exercise + micros + day goal -->
+  <div class="col-lg-5 d-flex flex-column gap-3">
+
+    <!-- Exercise -->
+    <div class="panel">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="panel-title mb-0"><i class="bi bi-lightning-charge-fill"></i> Exercice & Dépenses</div>
+        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#addExPanel">
+          <i class="bi bi-plus"></i>
+        </button>
+      </div>
+      <div class="collapse mb-2" id="addExPanel">
+        <form method="post" action="{{ url_for('log_exercise_add') }}" class="row g-2">
+          <input type="hidden" name="date_str" value="{{ date_str }}">
+          <div class="col-12"><input class="form-control form-control-sm" name="name" placeholder="ex. Course à pied, Vélo…" required></div>
+          <div class="col-6">
+            <div class="input-group input-group-sm">
+              <input class="form-control" name="kcal_burned" type="number" min="0" placeholder="kcal brûlées" required>
+              <span class="input-group-text">kcal</span>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="input-group input-group-sm">
+              <input class="form-control" name="duration_min" type="number" min="0" placeholder="Durée">
+              <span class="input-group-text">min</span>
+            </div>
+          </div>
+          <div class="col-12"><button class="btn btn-sm btn-accent w-100" type="submit"><i class="bi bi-plus"></i> Ajouter</button></div>
+        </form>
+      </div>
+      {% if exercise %}
+        {% for ex in exercise %}
+        <div class="log-entry">
+          <div class="log-entry-name"><i class="bi bi-fire text-warning"></i> {{ ex.name }}
+            {% if ex.duration_min %}<span class="log-servings">{{ ex.duration_min }} min</span>{% endif %}
+          </div>
+          <div class="log-entry-kcal" style="color:#f5a623">−{{ ex.kcal_burned|int }} kcal</div>
+          <form method="post" action="{{ url_for('log_exercise_delete', entry_id=ex.id) }}">
+            <input type="hidden" name="date_str" value="{{ date_str }}">
+            <button class="log-del-btn"><i class="bi bi-x"></i></button>
+          </form>
+        </div>
+        {% endfor %}
+        <div class="text-end mt-1" style="font-size:.8rem;color:#aaa">Total brûlé : {{ burned|int }} kcal</div>
+      {% else %}
+        <div style="font-size:.85rem;color:#bbb;text-align:center;padding:12px 0">Aucun exercice enregistré</div>
+      {% endif %}
+    </div>
+
+    <!-- Micronutrients & Vitamins -->
+    <div class="panel">
+      <details>
+        <summary class="panel-title" style="cursor:pointer;list-style:none;display:flex;justify-content:space-between">
+          <span><i class="bi bi-capsule"></i> Micronutriments & Vitamines</span>
+          <i class="bi bi-chevron-down" style="font-size:.8rem"></i>
+        </summary>
+        <div class="micro-grid mt-3">
+          {% for field in MICRO_FIELDS + VITAMIN_FIELDS %}
+          {% set val  = (totals.get(field) or 0) %}
+          {% set rdi  = RDI.get(field, 1) %}
+          {% set pct  = [(val / rdi * 100)|round(0), 100]|min if rdi else 0 %}
+          {% set label, unit = NUTRIENT_LABELS[field] %}
+          <div class="micro-item">
+            <div class="micro-label">{{ label }}</div>
+            <div class="micro-bar-wrap">
+              <div class="micro-bar" style="width:{{ pct }}%;
+                   {{ 'background:#e53935' if pct >= 100 else 'background:var(--accent)' if pct >= 75 else 'background:#4a90e2' if pct >= 40 else 'background:#ddd' }}">
+              </div>
+            </div>
+            <div class="micro-val">{{ val|round(1) }}<span>/{{ rdi }}{{ unit }}</span></div>
+          </div>
+          {% endfor %}
+        </div>
+      </details>
+    </div>
+
+    <!-- Daily goal override -->
+    <div class="panel">
+      <details {{ 'open' if daily_goal }}>
+        <summary class="panel-title" style="cursor:pointer;list-style:none;display:flex;justify-content:space-between">
+          <span><i class="bi bi-target"></i> Objectif du jour {% if daily_goal %}<span class="badge bg-warning text-dark ms-1">Personnalisé</span>{% endif %}</span>
+          <i class="bi bi-chevron-down" style="font-size:.8rem"></i>
+        </summary>
+        <form method="post" action="{{ url_for('log_goal_set') }}" class="row g-2 mt-2">
+          <input type="hidden" name="date_str" value="{{ date_str }}">
+          <div class="col-6">
+            <label class="form-label-sm">Calories (kcal)</label>
+            <input class="form-control form-control-sm" name="goal_kcal" type="number" min="0"
+                   value="{{ daily_goal.goal_kcal|int if daily_goal else goals.kcal|int }}" placeholder="{{ goals.kcal|int }}">
+          </div>
+          <div class="col-6">
+            <label class="form-label-sm">Protéines (g)</label>
+            <input class="form-control form-control-sm" name="goal_protein_g" type="number" min="0"
+                   value="{{ daily_goal.goal_protein_g|int if daily_goal else goals.protein_g|int }}">
+          </div>
+          <div class="col-6">
+            <label class="form-label-sm">Glucides (g)</label>
+            <input class="form-control form-control-sm" name="goal_carbs_g" type="number" min="0"
+                   value="{{ daily_goal.goal_carbs_g|int if daily_goal else goals.carbs_g|int }}">
+          </div>
+          <div class="col-6">
+            <label class="form-label-sm">Lipides (g)</label>
+            <input class="form-control form-control-sm" name="goal_fat_g" type="number" min="0"
+                   value="{{ daily_goal.goal_fat_g|int if daily_goal else goals.fat_g|int }}">
+          </div>
+          <div class="col-12 d-flex gap-2">
+            <button class="btn btn-accent btn-sm flex-fill" type="submit"><i class="bi bi-check"></i> Appliquer</button>
+            {% if daily_goal %}
+            <button class="btn btn-outline-secondary btn-sm" type="submit" name="goal_kcal" value="">
+              <i class="bi bi-arrow-counterclockwise"></i> Reset
+            </button>
+            {% endif %}
+          </div>
+        </form>
+      </details>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Add food tabs
+document.querySelectorAll('.add-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.add-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.add-tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    const id = tab.dataset.tab === 'recipe' ? 'tabRecipe' : 'tabManual';
+    document.getElementById(id).classList.add('active');
+    // Clear the other input
+    if (tab.dataset.tab === 'recipe') {
+      document.querySelector('[name="label"]').value = '';
+    } else {
+      document.querySelector('[name="recipe_id"]').value = '';
+    }
+  });
+});
+
+// Recipe nutrition preview on select
+const recipeSelect = document.getElementById('recipeSelect');
+const preview = document.getElementById('recipeNutrPreview');
+const servInput = document.querySelector('[name="servings"]');
+
+async function loadRecipeNutr() {
+  const rid = recipeSelect.value;
+  const sv  = parseFloat(servInput.value) || 1;
+  if (!rid) { preview.style.display='none'; return; }
+  try {
+    const res = await fetch(`/api/recipe/${rid}/nutrition?servings=${sv}`);
+    const d = await res.json();
+    if (!d.kcal) { preview.style.display='none'; return; }
+    preview.style.display = 'flex';
+    preview.innerHTML = `
+      <span class="prev-kcal"><i class="bi bi-fire"></i> ${Math.round(d.kcal)} kcal</span>
+      <span>P: ${(d.protein_g||0).toFixed(1)}g</span>
+      <span>G: ${(d.carbs_g||0).toFixed(1)}g</span>
+      <span>L: ${(d.fat_g||0).toFixed(1)}g</span>`;
+  } catch(e) { preview.style.display='none'; }
+}
+
+recipeSelect?.addEventListener('change', loadRecipeNutr);
+servInput?.addEventListener('input', loadRecipeNutr);
+</script>
+{% endblock %}

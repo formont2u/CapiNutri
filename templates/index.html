@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Recipe Book — Toutes les recettes{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div>
+    <h1>
+      {% if active_category %}{{ active_category }}
+      {% elif search %}Résultats pour "{{ search }}"
+      {% else %}Toutes les recettes{% endif %}
+    </h1>
+    <div class="subtitle">{{ recipes|length }} recette{{ 's' if recipes|length != 1 }}</div>
+  </div>
+  <div class="d-flex gap-3 align-items-center">
+    <form method="get" action="{{ url_for('index') }}" class="d-flex gap-2 align-items-center">
+      {% if active_category %}<input type="hidden" name="category" value="{{ active_category }}">{% endif %}
+      <div class="search-wrap">
+        <i class="bi bi-search"></i>
+        <input class="form-control" name="search" placeholder="Rechercher…" value="{{ search }}" style="width:220px">
+      </div>
+      {% if search %}
+        <a href="{{ url_for('index', category=active_category) }}" class="btn btn-outline-secondary btn-sm">✕</a>
+      {% endif %}
+    </form>
+    <a href="{{ url_for('new_recipe') }}" class="btn btn-accent d-flex align-items-center gap-2">
+      <i class="bi bi-plus-lg"></i> Nouvelle recette
+    </a>
+  </div>
+</div>
+
+{% if recipes %}
+<div class="row g-3">
+  {% for r in recipes %}
+  <div class="col-md-6 col-lg-4">
+    <a href="{{ url_for('view_recipe', recipe_id=r.id) }}" class="recipe-card">
+      <div class="card-category"><i class="bi bi-tag"></i> {{ r.category or 'Sans catégorie' }}</div>
+      <h3>{{ r.name }}</h3>
+      <div class="meta">
+        <span><i class="bi bi-people"></i>
+          {{ r.servings|int if r.servings == r.servings|int else r.servings }} portion{{ 's' if r.servings != 1 }}
+        </span>
+        {% if r.total_kcal %}
+        <span class="kcal-chip"><i class="bi bi-fire"></i>
+          {{ r.total_kcal|int }} kcal
+        </span>
+        {% endif %}
+      </div>
+    </a>
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
+<div class="empty-state">
+  <i class="bi bi-journal-text"></i>
+  {% if search %}
+    <p>Aucune recette pour <strong>"{{ search }}"</strong>.</p>
+    <a href="{{ url_for('index') }}" class="btn btn-accent">Effacer la recherche</a>
+  {% else %}
+    <p>Aucune recette pour l'instant. Ajoutez la première !</p>
+    <a href="{{ url_for('new_recipe') }}" class="btn btn-accent">
+      <i class="bi bi-plus-lg"></i> Ajouter une recette
+    </a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

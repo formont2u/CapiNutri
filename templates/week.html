@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Semaine du {{ start_label }}{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div>
+    <h1>Vue Semaine</h1>
+    <div class="subtitle">{{ start_label }}</div>
+  </div>
+  <div class="d-flex gap-2 align-items-center">
+    <a href="{{ url_for('week_view', start=prev_week) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-chevron-left"></i></a>
+    <a href="{{ url_for('week_view') }}" class="btn btn-sm btn-outline-secondary">Cette semaine</a>
+    <a href="{{ url_for('week_view', start=next_week) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-chevron-right"></i></a>
+  </div>
+</div>
+
+<!-- Weekly summary stats -->
+{% set total_kcal = days | sum(attribute='kcal') %}
+{% set days_logged = days | selectattr('kcal', '>', 0) | list | length %}
+{% set avg_kcal = (total_kcal / days_logged)|round(0) if days_logged > 0 else 0 %}
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3"><div class="week-stat-card">
+    <div class="week-stat-val">{{ total_kcal|int }}</div>
+    <div class="week-stat-label">kcal cette semaine</div>
+  </div></div>
+  <div class="col-md-3"><div class="week-stat-card">
+    <div class="week-stat-val">{{ avg_kcal|int }}</div>
+    <div class="week-stat-label">kcal / jour (moy.)</div>
+  </div></div>
+  <div class="col-md-3"><div class="week-stat-card">
+    <div class="week-stat-val">{{ days_logged }}</div>
+    <div class="week-stat-label">jours loggés / 7</div>
+  </div></div>
+  <div class="col-md-3"><div class="week-stat-card">
+    <div class="week-stat-val" style="color:var(--accent)">{{ goals.kcal|int }}</div>
+    <div class="week-stat-label">objectif kcal / jour</div>
+  </div></div>
+</div>
+
+<!-- Calorie chart (pure CSS bars) -->
+<div class="panel mb-4">
+  <div class="panel-title"><i class="bi bi-bar-chart-line"></i> Calories par jour</div>
+  <div class="week-chart">
+    {% for day in days %}
+    {% set pct = [(day.kcal / goals.kcal * 100), 120]|min if goals.kcal > 0 else 0 %}
+    {% set over = day.kcal > goals.kcal %}
+    <div class="week-bar-col">
+      <div class="week-bar-wrap">
+        <div class="week-bar {{ 'week-bar-over' if over }}"
+             style="height:{{ pct }}%"
+             title="{{ day.kcal|int }} kcal">
+          {% if day.kcal > 0 %}<span class="week-bar-val">{{ day.kcal|int }}</span>{% endif %}
+        </div>
+        <div class="week-goal-line" style="bottom:{{ [(goals.kcal / goals.kcal * 100), 100]|min }}%"></div>
+      </div>
+      <a href="{{ url_for('dashboard', date_str=day.date) }}" class="week-day-label {{ 'today-label' if day.date == today() }}">
+        {{ day.label }}
+      </a>
+      {% if day.burned > 0 %}
+      <div class="week-burn"><i class="bi bi-lightning-fill"></i>{{ day.burned|int }}</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+    <!-- Goal line label -->
+    <div class="week-goal-label">{{ goals.kcal|int }} kcal</div>
+  </div>
+</div>
+
+<!-- Macro table -->
+<div class="panel">
+  <div class="panel-title"><i class="bi bi-table"></i> Détail par jour</div>
+  <table class="week-table">
+    <thead>
+      <tr>
+        <th>Jour</th>
+        <th>Calories</th>
+        <th style="color:#4a90e2">Protéines</th>
+        <th style="color:#f5a623">Glucides</th>
+        <th style="color:#e8571a">Lipides</th>
+        <th>Net</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for day in days %}
+      <tr class="{{ 'today-row' if day.date == today() }}">
+        <td>
+          <a href="{{ url_for('dashboard', date_str=day.date) }}" class="text-decoration-none fw-semibold">
+            {{ day.label }}
+          </a>
+        </td>
+        <td>
+          {% if day.kcal > 0 %}
+          <span class="week-kcal-badge {{ 'over' if day.kcal > goals.kcal }}">{{ day.kcal|int }}</span>
+          {% else %}<span style="color:#ddd">—</span>{% endif %}
+        </td>
+        <td>{% if day.protein_g > 0 %}{{ day.protein_g }}g{% else %}<span style="color:#ddd">—</span>{% endif %}</td>
+        <td>{% if day.carbs_g > 0 %}{{ day.carbs_g }}g{% else %}<span style="color:#ddd">—</span>{% endif %}</td>
+        <td>{% if day.fat_g > 0 %}{{ day.fat_g }}g{% else %}<span style="color:#ddd">—</span>{% endif %}</td>
+        <td>
+          {% if day.kcal > 0 %}
+          {% set net = day.kcal - day.burned %}
+          <span style="color:{{ '#e53935' if net > goals.kcal else '#4caf50' }}">{{ net|int }}</span>
+          {% else %}<span style="color:#ddd">—</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td><strong>Total</strong></td>
+        <td><strong>{{ total_kcal|int }}</strong></td>
+        <td>{{ days | sum(attribute='protein_g') | round(1) }}g</td>
+        <td>{{ days | sum(attribute='carbs_g') | round(1) }}g</td>
+        <td>{{ days | sum(attribute='fat_g') | round(1) }}g</td>
+        <td></td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+{% endblock %}

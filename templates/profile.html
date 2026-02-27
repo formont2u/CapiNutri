@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% block title %}Profil & Objectifs{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div><h1>Profil & Objectifs</h1>
+  <div class="subtitle">TDEE, macros cibles, objectif personnalisé</div></div>
+</div>
+
+{% set tdee = profile.tdee() %}
+
+<!-- TDEE info card -->
+{% if tdee %}
+<div class="tdee-banner mb-4">
+  <div class="tdee-val">
+    <div class="big-num">{{ tdee|int }}</div><div class="big-unit">kcal / jour</div>
+    <div class="tdee-label">TDEE (dépense totale)</div>
+  </div>
+  <div class="tdee-arrow"><i class="bi bi-arrow-right-circle-fill"></i></div>
+  <div class="tdee-val">
+    <div class="big-num" style="color:var(--accent)">{{ sug|int }}</div><div class="big-unit">kcal / jour</div>
+    <div class="tdee-label">Objectif suggéré ({{ goal_labels[profile.goal] }})</div>
+  </div>
+  <div class="tdee-macros">
+    <div class="tdee-macro"><span style="color:#4a90e2">P</span> {{ eff.protein_g|int }}g</div>
+    <div class="tdee-macro"><span style="color:#f5a623">G</span> {{ eff.carbs_g|int }}g</div>
+    <div class="tdee-macro"><span style="color:#e8571a">L</span> {{ eff.fat_g|int }}g</div>
+  </div>
+</div>
+{% endif %}
+
+<form method="post">
+<div class="row g-4">
+
+  <!-- ── Infos personnelles ── -->
+  <div class="col-lg-6">
+    <div class="form-panel">
+      <div class="section-title"><i class="bi bi-person-fill"></i> Informations personnelles</div>
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="form-label">Prénom (optionnel)</label>
+          <input class="form-control" name="name" value="{{ profile.name or '' }}" placeholder="ex. Alex">
+        </div>
+        <div class="col-6">
+          <label class="form-label">Poids (kg)</label>
+          <input class="form-control" name="weight_kg" type="number" step="0.1" min="30" max="250"
+                 value="{{ profile.weight_kg or '' }}" placeholder="70">
+        </div>
+        <div class="col-6">
+          <label class="form-label">Taille (cm)</label>
+          <input class="form-control" name="height_cm" type="number" step="1" min="100" max="250"
+                 value="{{ profile.height_cm or '' }}" placeholder="175">
+        </div>
+        <div class="col-6">
+          <label class="form-label">Âge</label>
+          <input class="form-control" name="age" type="number" min="10" max="120"
+                 value="{{ profile.age or '' }}" placeholder="30">
+        </div>
+        <div class="col-6">
+          <label class="form-label">Sexe</label>
+          <select class="form-select" name="sex">
+            <option value="M" {{ 'selected' if profile.sex == 'M' }}>Homme</option>
+            <option value="F" {{ 'selected' if profile.sex == 'F' }}>Femme</option>
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Niveau d'activité</label>
+          <select class="form-select" name="activity_level">
+            {% for key, label in activity_labels.items() %}
+            <option value="{{ key }}" {{ 'selected' if profile.activity_level == key }}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Objectif</label>
+          <div class="goal-pills">
+            {% for key, label in goal_labels.items() %}
+            <label class="goal-pill {{ 'active' if profile.goal == key }}">
+              <input type="radio" name="goal" value="{{ key }}" {{ 'checked' if profile.goal == key }}>
+              {{ label }}
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Objectifs manuels ── -->
+  <div class="col-lg-6">
+    <div class="form-panel">
+      <div class="section-title"><i class="bi bi-sliders"></i> Objectifs manuels
+        <span class="text-muted fw-normal" style="font-size:.78rem"> — laisser vide = calcul auto</span>
+      </div>
+      {% if tdee %}
+      <div class="auto-suggestion mb-3">
+        <div class="auto-sug-label">Suggestion calculée</div>
+        <div class="auto-sug-vals">
+          <span>{{ sug|int }} kcal</span>
+          <span>{{ eff.protein_g|int }}g prot.</span>
+          <span>{{ eff.carbs_g|int }}g gluc.</span>
+          <span>{{ eff.fat_g|int }}g lip.</span>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="fillSuggested">
+          <i class="bi bi-arrow-down-circle"></i> Utiliser ces valeurs
+        </button>
+      </div>
+      {% endif %}
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="form-label">Calories cibles (kcal/jour)</label>
+          <input class="form-control" id="fKcal" name="goal_kcal" type="number" min="0"
+                 value="{{ profile.goal_kcal|int if profile.goal_kcal else '' }}"
+                 placeholder="{{ sug|int if sug else '2000' }} (auto)">
+        </div>
+        <div class="col-4">
+          <label class="form-label">Protéines (g)</label>
+          <input class="form-control" id="fProtein" name="goal_protein_g" type="number" min="0" step="any"
+                 value="{{ profile.goal_protein_g|int if profile.goal_protein_g else '' }}"
+                 placeholder="{{ eff.protein_g|int }} (auto)">
+        </div>
+        <div class="col-4">
+          <label class="form-label">Glucides (g)</label>
+          <input class="form-control" id="fCarbs" name="goal_carbs_g" type="number" min="0" step="any"
+                 value="{{ profile.goal_carbs_g|int if profile.goal_carbs_g else '' }}"
+                 placeholder="{{ eff.carbs_g|int }} (auto)">
+        </div>
+        <div class="col-4">
+          <label class="form-label">Lipides (g)</label>
+          <input class="form-control" id="fFat" name="goal_fat_g" type="number" min="0" step="any"
+                 value="{{ profile.goal_fat_g|int if profile.goal_fat_g else '' }}"
+                 placeholder="{{ eff.fat_g|int }} (auto)">
+        </div>
+      </div>
+
+      <!-- Live macro ratio visualiser -->
+      <div class="macro-ratio-preview mt-4" id="ratioPreview">
+        <div class="ratio-label">Répartition calorique</div>
+        <div class="ratio-bar" id="ratioBar">
+          <div class="ratio-seg ratio-p" id="ratioP" style="width:30%">P 30%</div>
+          <div class="ratio-seg ratio-c" id="ratioC" style="width:40%">G 40%</div>
+          <div class="ratio-seg ratio-f" id="ratioF" style="width:30%">L 30%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="d-flex gap-3 mt-4">
+  <button type="submit" class="btn btn-accent px-4 py-2 d-flex align-items-center gap-2">
+    <i class="bi bi-floppy"></i> Sauvegarder le profil
+  </button>
+  <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">Voir le dashboard</a>
+</div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Goal pills toggle style
+document.querySelectorAll('.goal-pill input').forEach(inp => {
+  inp.addEventListener('change', () => {
+    document.querySelectorAll('.goal-pill').forEach(p => p.classList.remove('active'));
+    inp.closest('.goal-pill').classList.add('active');
+  });
+});
+
+// Fill suggested values button
+const sug = { kcal: {{ sug|int if sug else 2000 }}, p: {{ eff.protein_g|int }}, c: {{ eff.carbs_g|int }}, f: {{ eff.fat_g|int }} };
+document.getElementById('fillSuggested')?.addEventListener('click', () => {
+  document.getElementById('fKcal').value    = sug.kcal;
+  document.getElementById('fProtein').value = sug.p;
+  document.getElementById('fCarbs').value   = sug.c;
+  document.getElementById('fFat').value     = sug.f;
+  updateRatio();
+});
+
+// Live ratio bar
+function updateRatio() {
+  const p = parseFloat(document.getElementById('fProtein').value) || {{ eff.protein_g }};
+  const c = parseFloat(document.getElementById('fCarbs').value)   || {{ eff.carbs_g }};
+  const f = parseFloat(document.getElementById('fFat').value)     || {{ eff.fat_g }};
+  const total = p*4 + c*4 + f*9;
+  if (total <= 0) return;
+  const pp = (p*4/total*100).toFixed(0);
+  const pc = (c*4/total*100).toFixed(0);
+  const pf = (f*9/total*100).toFixed(0);
+  document.getElementById('ratioP').style.width = pp+'%'; document.getElementById('ratioP').textContent = `P ${pp}%`;
+  document.getElementById('ratioC').style.width = pc+'%'; document.getElementById('ratioC').textContent = `G ${pc}%`;
+  document.getElementById('ratioF').style.width = pf+'%'; document.getElementById('ratioF').textContent = `L ${pf}%`;
+}
+['fProtein','fCarbs','fFat'].forEach(id => document.getElementById(id)?.addEventListener('input', updateRatio));
+updateRatio();
+</script>
+{% endblock %}
