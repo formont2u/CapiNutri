@@ -348,6 +348,33 @@ def api_product_barcode(barcode):
 
 
 
+# ── Routes: Ingredient Library ────────────────────────────────────────────────
+
+@app.route("/api/library/save", methods=["POST"])
+def api_library_save():
+    """
+    Called when a user selects & validates an ingredient from OFF results.
+    Saves the per-100g nutritional values to the local library.
+    """
+    data = request.get_json(force=True)
+    name     = (data.get("name") or "").strip()
+    brand    = (data.get("brand") or "").strip()
+    barcode  = (data.get("barcode") or "").strip()
+    per_100g = data.get("per_100g") or {}
+    lib_id   = data.get("library_id")   # set if it was already a library result
+
+    if not name or not per_100g:
+        return jsonify({"ok": False, "error": "name and per_100g required"}), 400
+
+    if lib_id:
+        nutrition_api.library_increment(int(lib_id))
+        return jsonify({"ok": True, "id": lib_id, "action": "incremented"})
+
+    saved_id = nutrition_api.library_save(name, brand, barcode, per_100g)
+    return jsonify({"ok": True, "id": saved_id, "action": "saved"})
+
+
+
 if __name__ == "__main__":
     print("\n🍽  Recipe Book running at http://localhost:5000\n")
     app.run(debug=True, port=5000)
