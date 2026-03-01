@@ -52,6 +52,17 @@ class Ingredient:
     vit_b6_mg: Optional[float] = None
     vit_b9_mcg: Optional[float] = None
     vit_b12_mcg: Optional[float] = None
+    # USDA-enhanced fields
+    cholesterol_mg: Optional[float] = None
+    trans_fat_g:    Optional[float] = None
+    omega3_g:       Optional[float] = None
+    omega6_g:       Optional[float] = None
+    phosphorus_mg:  Optional[float] = None
+    selenium_mcg:   Optional[float] = None
+    copper_mg:      Optional[float] = None
+    manganese_mg:   Optional[float] = None
+    vit_e_mg:       Optional[float] = None
+    vit_k_mcg:      Optional[float] = None
     id: Optional[int] = None
     recipe_id: Optional[int] = None
 
@@ -83,6 +94,7 @@ class Recipe:
     category: Optional[str] = None
     category_id: Optional[int] = None
     ingredients: list[Ingredient] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)   # tag names
     id: Optional[int] = None
 
     def scale_factor(self, desired_servings: float) -> float:
@@ -107,6 +119,51 @@ class Recipe:
         if not total or servings == 0:
             return None
         return {k: round(v / servings, 2) for k, v in total.items()}
+
+    def nutri_score(self) -> Optional[dict]:
+        """
+        Simplified Nutri-Score (A→E) based on per-serving nutrition.
+        Returns {"grade": "A", "score": -3, "color": "#...", "text_color": "#..."}
+        or None if no nutrition data.
+        """
+        nutr = self.nutrition_per_serving()
+        if not nutr:
+            return None
+
+        # ── Negative points (higher = worse) ─────────────────────────────────
+        def _pts(val, thresholds):
+            """Score val against ascending threshold list (0-indexed = 1pt)."""
+            if val is None:
+                return 0
+            for i, t in enumerate(thresholds):
+                if val <= t:
+                    return i
+            return len(thresholds)
+
+        kcal = nutr.get("kcal") or 0
+        # Energy in kJ (1 kcal = 4.184 kJ), thresholds per serving ÷ ~2 (rough scale)
+        kj = kcal * 4.184
+        n_energy   = _pts(kj,           [335,670,1005,1340,1675,2010,2345,2680,3015,3350])
+        n_sugars   = _pts(nutr.get("sugars_g"),    [4.5,9,13.5,18,22.5,27,31,36,40,45])
+        n_saturated= _pts(nutr.get("saturated_g"), [1,2,3,4,5,6,7,8,9,10])
+        n_sodium   = _pts(nutr.get("sodium_mg"),   [90,180,270,360,450,540,630,720,810,900])
+        N = n_energy + n_sugars + n_saturated + n_sodium
+
+        # ── Positive points (higher = better) ────────────────────────────────
+        p_fiber   = _pts(nutr.get("fiber_g"),   [0.9,1.9,2.8,3.7,4.7])
+        p_protein = _pts(nutr.get("protein_g"), [1.6,3.2,4.8,6.4,8.0])
+        P = p_fiber + p_protein
+
+        score = N - P
+
+        # ── Grade ─────────────────────────────────────────────────────────────
+        if   score <= -1: grade, bg, fg = "A", "#2e7d32", "#fff"
+        elif score <=  2: grade, bg, fg = "B", "#7cb342", "#fff"
+        elif score <= 10: grade, bg, fg = "C", "#f9a825", "#000"
+        elif score <= 18: grade, bg, fg = "D", "#ef6c00", "#fff"
+        else:             grade, bg, fg = "E", "#c62828", "#fff"
+
+        return {"grade": grade, "score": score, "color": bg, "text_color": fg}
 
 
 # ── User Profile ──────────────────────────────────────────────────────────────
@@ -148,6 +205,7 @@ class UserProfile:
     goal_protein_g: Optional[float] = None
     goal_carbs_g: Optional[float] = None
     goal_fat_g: Optional[float] = None
+    meals_per_day: int = 3  # 3 or 4 — drives meal plan slots
 
     def bmr(self) -> Optional[float]:
         """Mifflin-St Jeor BMR."""
@@ -228,6 +286,17 @@ class FoodLogEntry:
     vit_b6_mg: Optional[float] = None
     vit_b9_mcg: Optional[float] = None
     vit_b12_mcg: Optional[float] = None
+    # USDA-enhanced
+    cholesterol_mg: Optional[float] = None
+    trans_fat_g:    Optional[float] = None
+    omega3_g:       Optional[float] = None
+    omega6_g:       Optional[float] = None
+    phosphorus_mg:  Optional[float] = None
+    selenium_mcg:   Optional[float] = None
+    copper_mg:      Optional[float] = None
+    manganese_mg:   Optional[float] = None
+    vit_e_mg:       Optional[float] = None
+    vit_k_mcg:      Optional[float] = None
 
     def nutrient_dict(self) -> dict:
         return {f: getattr(self, f) or 0.0 for f in NUTRIENT_FIELDS}

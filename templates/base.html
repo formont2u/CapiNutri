@@ -656,6 +656,89 @@
 
 
 
+    /* ── Library table ──────────────────────────────────────────────────── */
+    .lib-table-wrap { overflow-x: auto; }
+    .lib-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+    .lib-table thead th {
+      padding: 8px 12px; text-align: left; font-weight: 700;
+      color: #888; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em;
+      border-bottom: 2px solid #f0f0f0;
+    }
+    .lib-table tbody tr { border-bottom: 1px solid #f5f5f5; transition: background .12s; }
+    .lib-table tbody tr:hover { background: #fafafa; }
+    .lib-table td { padding: 10px 12px; vertical-align: middle; }
+    .lib-name { font-weight: 600; color: #1a1a1a; }
+    .lib-brand { color: #888; font-size: .82rem; }
+    .lib-num { text-align: right; font-variant-numeric: tabular-nums; color: #444; }
+    .lib-barcode { font-size: .72rem; color: #aaa; margin-left: 6px; }
+    .lib-uses-badge {
+      background: #f0f0f0; color: #666; font-size: .72rem;
+      font-weight: 700; padding: 2px 8px; border-radius: 20px;
+    }
+    .lib-actions { display: flex; gap: 4px; justify-content: flex-end; }
+
+    /* ── Meal plan ───────────────────────────────────────────────────────── */
+    .plan-header {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+    }
+    .plan-date-display { flex: 1; display: flex; align-items: baseline; gap: 10px; }
+    .plan-day { font-size: 1.4rem; font-weight: 800; margin: 0; }
+    .today-chip {
+      background: var(--accent); color: #fff; font-size: .72rem; font-weight: 700;
+      padding: 2px 10px; border-radius: 20px; display: flex; align-items: center; gap: 4px;
+    }
+    .today-chip .bi-circle-fill { font-size: .5rem; }
+    .plan-info {
+      font-size: .82rem; color: #888; margin-bottom: 20px;
+    }
+    .plan-info a { color: var(--accent); text-decoration: none; }
+    .plan-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+    }
+    .plan-card {
+      background: #fff; border-radius: 14px;
+      border: 2px solid #f0f0f0;
+      padding: 0; overflow: hidden;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .plan-card:hover { border-color: #e0e0e0; box-shadow: 0 4px 16px rgba(0,0,0,.06); }
+    .plan-card.is-logged { border-color: #d4edda; background: #f8fff9; }
+    .plan-card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px 10px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .plan-meal-label {
+      font-weight: 700; font-size: .88rem; color: #555;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .plan-logged-chip {
+      font-size: .7rem; font-weight: 700; color: #2e7d32;
+      background: #e8f5e9; padding: 2px 8px; border-radius: 20px;
+    }
+    .plan-recipe { padding: 14px 16px; }
+    .plan-recipe-name a {
+      font-weight: 700; color: #1a1a1a; font-size: .95rem;
+      text-decoration: none;
+    }
+    .plan-recipe-name a:hover { color: var(--accent); }
+    .plan-recipe-kcal {
+      font-size: .78rem; color: #e8571a; font-weight: 600;
+      margin: 4px 0 10px;
+    }
+    .plan-recipe-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .plan-empty {
+      padding: 20px 16px; text-align: center;
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+    }
+    .plan-empty-icon { font-size: 2rem; color: #ddd; }
+    .plan-empty-hint { font-size: .82rem; color: #bbb; }
+    .plan-empty-actions { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .plan-or { font-size: .75rem; color: #ccc; }
+    .plan-pick-wrap { width: 100%; }
+    .plan-pick-wrap select { font-size: .82rem; }
   </style>
 </head>
 <body>
@@ -664,28 +747,34 @@
 <div id="sidebar">
   <div class="brand">🍽 Recipe <span>Book</span></div>
   <nav>
-    <a href="{{ url_for('index') }}"       class="{{ 'active' if request.endpoint == 'index' and not request.args.get('category') else '' }}">
-      <i class="bi bi-grid-fill"></i> All Recipes
+    <a href="{{ url_for('index') }}" class="{{ 'active' if request.endpoint == 'index' and not request.args.get('category') else '' }}">
+      <i class="bi bi-grid-fill"></i> Toutes les recettes
     </a>
-    <a href="{{ url_for('new_recipe') }}"  class="{{ 'active' if request.endpoint == 'new_recipe' else '' }}">
-      <i class="bi bi-plus-circle-fill"></i> New Recipe
+    <a href="{{ url_for('new_recipe') }}" class="{{ 'active' if request.endpoint == 'new_recipe' else '' }}">
+      <i class="bi bi-plus-circle-fill"></i> Nouvelle recette
     </a>
-    <a href="{{ url_for('dashboard') }}"  class="{{ 'active' if request.endpoint in ['dashboard','week_view'] else '' }}">
+    <div class="nav-section">Planification</div>
+    <a href="{{ url_for('meal_plan') }}" class="{{ 'active' if request.endpoint == 'meal_plan' else '' }}">
+      <i class="bi bi-calendar2-week-fill"></i> Planning repas
+    </a>
+    <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint in ['dashboard','week_view'] else '' }}">
       <i class="bi bi-activity"></i> Dashboard
     </a>
-    <a href="{{ url_for('week_view') }}"    class="{{ 'active' if request.endpoint == 'week_view' else '' }}">
-      <i class="bi bi-calendar3-week"></i> Semaine
+    <a href="{{ url_for('week_view') }}" class="{{ 'active' if request.endpoint == 'week_view' else '' }}">
+      <i class="bi bi-calendar3-week"></i> Vue semaine
     </a>
-    <a href="{{ url_for('profile') }}"      class="{{ 'active' if request.endpoint == 'profile' else '' }}">
+    <div class="nav-section">Données</div>
+    <a href="{{ url_for('library') }}" class="{{ 'active' if request.endpoint in ['library','library_edit'] else '' }}">
+      <i class="bi bi-bookmark-star-fill"></i> Bibliothèque
+    </a>
+    <a href="{{ url_for('categories') }}" class="{{ 'active' if request.endpoint == 'categories' else '' }}">
+      <i class="bi bi-tag-fill"></i> Catégories
+    </a>
+    <a href="{{ url_for('profile') }}" class="{{ 'active' if request.endpoint == 'profile' else '' }}">
       <i class="bi bi-person-circle"></i> Profil & Objectifs
     </a>
-    <div class="nav-section">Recettes</div>
-    <a href="{{ url_for('categories') }}"  class="{{ 'active' if request.endpoint == 'categories' else '' }}">
-      <i class="bi bi-tag-fill"></i> Categories
-    </a>
-
     {% if categories %}
-    <div class="nav-section">Browse</div>
+    <div class="nav-section">Par catégorie</div>
     {% for cat in categories %}
     <a href="{{ url_for('index', category=cat) }}"
        class="cat-pill {{ 'active' if request.args.get('category') == cat else '' }}">
@@ -694,7 +783,7 @@
     {% endfor %}
     {% endif %}
   </nav>
-  <div class="sidebar-footer">Modules 1–4 actifs</div>
+  <div class="sidebar-footer">Planning + Bibliothèque actifs</div>
 </div>
 
 <!-- Main -->

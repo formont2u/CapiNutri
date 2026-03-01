@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Bibliothèque d'ingrédients{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div>
+    <h1><i class="bi bi-bookmark-star-fill" style="color:var(--accent)"></i> Bibliothèque</h1>
+    <div class="subtitle">{{ entries|length }} ingrédient{{ 's' if entries|length != 1 }} enregistré{{ 's' if entries|length != 1 }}</div>
+  </div>
+  <div class="d-flex gap-2 align-items-center">
+    <form method="get" class="d-flex gap-2 align-items-center">
+      <div class="search-wrap">
+        <i class="bi bi-search"></i>
+        <input class="form-control" name="q" placeholder="Rechercher…" value="{{ search }}" style="width:200px">
+      </div>
+      {% if search %}<a href="{{ url_for('library') }}" class="btn btn-outline-secondary btn-sm">✕</a>{% endif %}
+    </form>
+    <a href="{{ url_for('library_add') }}" class="btn btn-accent d-flex align-items-center gap-1">
+      <i class="bi bi-plus-lg"></i> Ajouter
+    </a>
+  </div>
+</div>
+
+{% if entries %}
+<div class="lib-table-wrap">
+  <table class="lib-table">
+    <thead>
+      <tr>
+        <th>Ingrédient</th>
+        <th>Marque</th>
+        <th style="text-align:right">kcal/100g</th>
+        <th style="text-align:right">Prot.</th>
+        <th style="text-align:right">Glucides</th>
+        <th style="text-align:right">Lipides</th>
+        <th style="text-align:right">Utilisations</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for e in entries %}
+    <tr>
+      <td class="lib-name">
+        {{ e.name }}
+        {% if e.barcode %}<span class="lib-barcode"><i class="bi bi-upc"></i> {{ e.barcode }}</span>{% endif %}
+      </td>
+      <td class="lib-brand">{{ e.brand or '—' }}</td>
+      <td class="lib-num">{{ e.kcal_100g|round(0)|int if e.kcal_100g else '—' }}</td>
+      <td class="lib-num">{{ e.protein_g_100g|round(1) if e.protein_g_100g else '—' }}</td>
+      <td class="lib-num">{{ e.carbs_g_100g|round(1) if e.carbs_g_100g else '—' }}</td>
+      <td class="lib-num">{{ e.fat_g_100g|round(1) if e.fat_g_100g else '—' }}</td>
+      <td class="lib-num">
+        <span class="lib-uses-badge">{{ e.used_count }}</span>
+      </td>
+      <td class="lib-actions">
+        <a href="{{ url_for('library_edit', entry_id=e.id) }}"
+           class="btn btn-sm btn-outline-secondary" title="Modifier">
+          <i class="bi bi-pencil"></i>
+        </a>
+        <form method="post" action="{{ url_for('library_delete', entry_id=e.id) }}"
+              style="display:inline" onsubmit="return confirm('Supprimer « {{ e.name }} » ?')">
+          <button class="btn btn-sm btn-outline-danger" title="Supprimer">
+            <i class="bi bi-trash"></i>
+          </button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% else %}
+<div class="empty-state">
+  <i class="bi bi-bookmark-x"></i>
+  {% if search %}
+    <p>Aucun résultat pour <strong>"{{ search }}"</strong>.</p>
+    <a href="{{ url_for('library') }}" class="btn btn-accent">Effacer</a>
+  {% else %}
+    <p>La bibliothèque est vide pour l'instant.</p>
+    <p style="color:#aaa;font-size:.88rem">
+      Cherche un ingrédient depuis le formulaire de recette — il sera automatiquement sauvegardé ici quand tu le sélectionnes.
+    </p>
+    <a href="{{ url_for('new_recipe') }}" class="btn btn-accent">Créer une recette</a>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

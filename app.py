@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 import db, crud
 import nutrition_api
-from db import NUTRIENT_FIELDS, NUTRIENT_LABELS, RDI, MACRO_FIELDS, CARB_FIELDS, FAT_FIELDS, MICRO_FIELDS, VITAMIN_FIELDS
+from db import NUTRIENT_FIELDS, NUTRIENT_LABELS, RDI, MACRO_FIELDS, CARB_FIELDS, FAT_FIELDS, MICRO_FIELDS, VITAMIN_FIELDS, USDA_FIELDS
 from typing import Optional
 from models import Recipe, Ingredient, UserProfile, FoodLogEntry, ExerciseEntry, MEAL_TYPES, ACTIVITY_LABELS, GOAL_LABELS
 
@@ -20,7 +20,7 @@ app.jinja_env.globals.update(
     today=lambda: date.today().isoformat(),
     NUTRIENT_LABELS=NUTRIENT_LABELS, RDI=RDI,
     MACRO_FIELDS=MACRO_FIELDS, CARB_FIELDS=CARB_FIELDS,
-    FAT_FIELDS=FAT_FIELDS, MICRO_FIELDS=MICRO_FIELDS, VITAMIN_FIELDS=VITAMIN_FIELDS,
+    FAT_FIELDS=FAT_FIELDS, MICRO_FIELDS=MICRO_FIELDS, VITAMIN_FIELDS=VITAMIN_FIELDS, USDA_FIELDS=USDA_FIELDS,
     MEAL_TYPES=MEAL_TYPES,
 )
 
@@ -55,12 +55,16 @@ def parse_ingredients_from_form(form) -> list[Ingredient]:
 
 @app.route("/")
 def index():
-    category = request.args.get("category","")
-    search   = request.args.get("search","")
-    recipes  = crud.list_recipes(category=category or None, search=search or None)
+    category   = request.args.get("category","")
+    search     = request.args.get("search","")
+    active_tag = request.args.get("tag","")
+    recipes    = crud.list_recipes(category=category or None, search=search or None,
+                                   tag=active_tag or None)
     categories = crud.list_categories()
+    all_tags   = crud.list_tags()
     return render_template("index.html", recipes=recipes, categories=categories,
-                           active_category=category, search=search)
+                           active_category=category, search=search,
+                           all_tags=all_tags, active_tag=active_tag)
 
 @app.route("/recipe/<int:recipe_id>")
 def view_recipe(recipe_id):
@@ -75,16 +79,17 @@ def new_recipe():
     categories = crud.list_categories()
     if request.method == "POST":
         name = request.form.get("name","").strip()
-        if not name: flash("Nom requis.", "error"); return render_template("form.html", recipe=None, categories=categories)
+        if not name: flash("Nom requis.", "error"); return render_template("form.html", recipe=None, categories=categories, all_tags=crud.list_tags())
         recipe = Recipe(name=name,
             category=request.form.get("category","").strip() or None,
             servings=float(request.form.get("servings",1) or 1),
             instructions=request.form.get("instructions","").strip(),
-            ingredients=parse_ingredients_from_form(request.form))
+            ingredients=parse_ingredients_from_form(request.form),
+            tags=request.form.getlist("tags"))
         rid = crud.add_recipe(recipe)
         flash(f"'{recipe.name}' ajoutée !", "success")
         return redirect(url_for("view_recipe", recipe_id=rid))
-    return render_template("form.html", recipe=None, categories=categories)
+    return render_template("form.html", recipe=None, categories=categories, all_tags=crud.list_tags())
 
 @app.route("/recipe/<int:recipe_id>/edit", methods=["GET","POST"])
 def edit_recipe(recipe_id):
@@ -97,11 +102,12 @@ def edit_recipe(recipe_id):
         recipe.servings     = float(request.form.get("servings",1) or 1)
         recipe.instructions = request.form.get("instructions","").strip()
         recipe.ingredients  = parse_ingredients_from_form(request.form)
-        if not recipe.name: flash("Nom requis.", "error"); return render_template("form.html", recipe=recipe, categories=categories)
+        recipe.tags         = request.form.getlist("tags")
+        if not recipe.name: flash("Nom requis.", "error"); return render_template("form.html", recipe=recipe, categories=categories, all_tags=crud.list_tags())
         crud.update_recipe(recipe)
         flash(f"'{recipe.name}' mise à jour !", "success")
         return redirect(url_for("view_recipe", recipe_id=recipe_id))
-    return render_template("form.html", recipe=recipe, categories=categories)
+    return render_template("form.html", recipe=recipe, categories=categories, all_tags=crud.list_tags())
 
 @app.route("/recipe/<int:recipe_id>/delete", methods=["POST"])
 def delete_recipe(recipe_id):
@@ -149,6 +155,7 @@ def profile():
             goal_protein_g = _f(f.get("goal_protein_g")),
             goal_carbs_g   = _f(f.get("goal_carbs_g")),
             goal_fat_g     = _f(f.get("goal_fat_g")),
+            meals_per_day  = int(f.get("meals_per_day", 3)),
         )
         crud.save_profile(p)
         flash("Profil sauvegardé !", "success")
@@ -329,13 +336,16 @@ def api_recipe_nutrition(recipe_id):
 @app.route("/api/search_food")
 def api_search_food():
     """
-    Proxy to Open Food Facts. Returns per-100g nutrition so the client
-    can scale dynamically as the user changes quantity.
+    Search ingredients via USDA (raw foods, fast) or OFF (branded products).
+    ?q=query&source=usda|off
     """
-    q = request.args.get("q", "").strip()
+    q      = request.args.get("q", "").strip()
+    source = request.args.get("source", "usda")  # default: USDA
+    if source not in ("usda", "off"):
+        source = "usda"
     if not q or len(q) < 2:
         return jsonify([])
-    results = nutrition_api.search(q, page_size=8)
+    results = nutrition_api.search(q, source=source, page_size=8)
     return jsonify(results)
 
 
@@ -373,6 +383,264 @@ def api_library_save():
     saved_id = nutrition_api.library_save(name, brand, barcode, per_100g)
     return jsonify({"ok": True, "id": saved_id, "action": "saved"})
 
+
+
+# ── Routes: Ingredient Library ────────────────────────────────────────────────
+
+@app.route("/library")
+def library():
+    search  = request.args.get("q", "")
+    entries = crud.list_library(search=search)
+    return render_template("library.html", entries=entries, search=search)
+
+
+@app.route("/library/add", methods=["GET", "POST"])
+def library_add():
+    if request.method == "POST":
+        per_100g = {}
+        for f in NUTRIENT_FIELDS:
+            v = request.form.get(f"nutr_{f}", "").strip()
+            if v:
+                try: per_100g[f] = float(v)
+                except ValueError: pass
+        nutrition_api.library_save(
+            name    = request.form.get("name", "").strip(),
+            brand   = request.form.get("brand", "").strip(),
+            barcode = request.form.get("barcode", "").strip(),
+            per_100g = per_100g,
+        )
+        flash("Ingrédient ajouté à la bibliothèque !", "success")
+        return redirect(url_for("library"))
+    # Empty entry for the template
+    empty = {f + "_100g": None for f in NUTRIENT_FIELDS}
+    empty.update({"id": None, "name": "", "brand": "", "barcode": "", "search_key": ""})
+    return render_template("library_edit.html", entry=empty, is_new=True,
+                           NUTRIENT_FIELDS=NUTRIENT_FIELDS,
+                           NUTRIENT_LABELS=NUTRIENT_LABELS,
+                           MACRO_FIELDS=MACRO_FIELDS, CARB_FIELDS=CARB_FIELDS,
+                           FAT_FIELDS=FAT_FIELDS, MICRO_FIELDS=MICRO_FIELDS,
+                           VITAMIN_FIELDS=VITAMIN_FIELDS, USDA_FIELDS=USDA_FIELDS)
+
+
+@app.route("/library/<int:entry_id>/edit", methods=["GET", "POST"])
+def library_edit(entry_id):
+    entry = crud.get_library_entry(entry_id)
+    if not entry:
+        return redirect(url_for("library"))
+    if request.method == "POST":
+        per_100g = {}
+        for f in NUTRIENT_FIELDS:
+            v = request.form.get(f"nutr_{f}", "").strip()
+            if v:
+                try: per_100g[f] = float(v)
+                except ValueError: pass
+        crud.update_library_entry(
+            entry_id,
+            name    = request.form.get("name", "").strip(),
+            brand   = request.form.get("brand", "").strip(),
+            barcode = request.form.get("barcode", "").strip(),
+            per_100g = per_100g,
+        )
+        return redirect(url_for("library"))
+    return render_template("library_edit.html", entry=entry, is_new=False,
+                           NUTRIENT_FIELDS=NUTRIENT_FIELDS,
+                           NUTRIENT_LABELS=NUTRIENT_LABELS,
+                           MACRO_FIELDS=MACRO_FIELDS, CARB_FIELDS=CARB_FIELDS,
+                           FAT_FIELDS=FAT_FIELDS, MICRO_FIELDS=MICRO_FIELDS,
+                           VITAMIN_FIELDS=VITAMIN_FIELDS, USDA_FIELDS=USDA_FIELDS)
+
+
+@app.route("/library/<int:entry_id>/delete", methods=["POST"])
+def library_delete(entry_id):
+    crud.delete_library_entry(entry_id)
+    return redirect(url_for("library"))
+
+
+# ── Routes: Meal Plan ─────────────────────────────────────────────────────────
+
+@app.route("/plan")
+@app.route("/plan/<date_str>")
+def meal_plan(date_str=None):
+    from datetime import date, timedelta
+    import locale
+    today = date.today().isoformat()
+    if not date_str:
+        date_str = today
+    profile = crud.get_profile()
+    plan    = crud.get_plan(date_str)
+    recipes = crud.list_recipes()
+    # Active meal slots depend on meals_per_day
+    meals_per_day = getattr(profile, "meals_per_day", 3)
+    active_slots = crud.MEAL_TYPES[:meals_per_day]
+    # Date label (French)
+    d = date.fromisoformat(date_str)
+    day_names = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"]
+    month_names = ["janvier","février","mars","avril","mai","juin",
+                   "juillet","août","septembre","octobre","novembre","décembre"]
+    date_label = f"{day_names[d.weekday()]} {d.day} {month_names[d.month-1]} {d.year}"
+    return render_template("plan.html",
+                           plan=plan, date_str=date_str, today=today,
+                           date_label=date_label,
+                           active_slots=active_slots,
+                           meal_labels=crud.MEAL_LABELS,
+                           meal_icons=crud.MEAL_ICONS,
+                           meals_per_day=meals_per_day,
+                           recipes=recipes,
+                           prev_date=(d - timedelta(days=1)).isoformat(),
+                           next_date=(d + timedelta(days=1)).isoformat())
+
+
+@app.route("/api/plan/suggest")
+def api_plan_suggest():
+    meal_type = request.args.get("meal_type", "lunch")
+    date_str  = request.args.get("date", "")
+    if not date_str:
+        from datetime import date
+        date_str = date.today().isoformat()
+    suggestion = crud.suggest_recipe(meal_type, date_str)
+    if not suggestion:
+        return jsonify({"error": "no_recipes"}), 404
+    return jsonify(suggestion)
+
+
+@app.route("/api/plan/set", methods=["POST"])
+def api_plan_set():
+    data      = request.get_json(force=True)
+    date_str  = data.get("date", "")
+    meal_type = data.get("meal_type", "")
+    recipe_id = data.get("recipe_id")
+    if not all([date_str, meal_type, recipe_id]):
+        return jsonify({"ok": False}), 400
+    try:
+        plan_id = crud.set_plan_slot(date_str, meal_type, int(recipe_id))
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    return jsonify({"ok": True, "plan_id": plan_id})
+
+
+@app.route("/api/plan/clear", methods=["POST"])
+def api_plan_clear():
+    data    = request.get_json(force=True)
+    plan_id = data.get("plan_id")
+    if not plan_id:
+        return jsonify({"ok": False}), 400
+    crud.clear_plan_slot(int(plan_id))
+    return jsonify({"ok": True})
+
+
+@app.route("/api/plan/log", methods=["POST"])
+def api_plan_log():
+    """Log a planned meal to food_log and mark it as logged."""
+    from datetime import date as _date
+    data      = request.get_json(force=True)
+    plan_id   = data.get("plan_id")
+    date_str  = data.get("date", _date.today().isoformat())
+    meal_type = data.get("meal_type", "other")
+    recipe_id = data.get("recipe_id")
+
+    if not recipe_id:
+        return jsonify({"ok": False}), 400
+
+    recipe = crud.get_recipe(int(recipe_id))
+    if not recipe:
+        return jsonify({"ok": False}), 404
+
+    from models import FoodLogEntry
+    nutrition = recipe.total_nutrition() or {}
+    entry = FoodLogEntry(
+        log_date=date_str, meal_type=meal_type,
+        recipe_id=recipe.id, label=recipe.name, servings=1.0,
+        **{f: nutrition.get(f) for f in NUTRIENT_FIELDS}
+    )
+    crud.add_food_log(entry)
+    if plan_id:
+        crud.mark_plan_logged(int(plan_id))
+    return jsonify({"ok": True})
+
+
+
+
+# ── Routes: Pantry ────────────────────────────────────────────────────────────
+
+@app.route("/pantry", methods=["GET", "POST"])
+def pantry():
+    if request.method == "POST":
+        action = request.form.get("action")
+        if action == "add":
+            name = request.form.get("name","").strip()
+            qty  = _f(request.form.get("quantity",""))
+            unit = request.form.get("unit","").strip()
+            if name:
+                crud.add_pantry_item(name, qty, unit)
+                flash(f"« {name} » ajouté au garde-manger.", "success")
+        elif action == "delete":
+            crud.delete_pantry_item(int(request.form.get("item_id",0)))
+        elif action == "update":
+            crud.update_pantry_item(
+                int(request.form.get("item_id",0)),
+                request.form.get("name","").strip(),
+                _f(request.form.get("quantity","")),
+                request.form.get("unit","").strip()
+            )
+        return redirect(url_for("pantry"))
+
+    items     = crud.list_pantry()
+    cookable  = crud.get_cookable_recipes()
+    return render_template("pantry.html", items=items, cookable=cookable)
+
+
+# ── Routes: Shopping List ─────────────────────────────────────────────────────
+
+@app.route("/shopping")
+@app.route("/shopping/<start>")
+def shopping_list(start=None):
+    if not start:
+        today = date.today()
+        start = (today - timedelta(days=today.weekday())).isoformat()
+    start_d = date.fromisoformat(start)
+    prev_week = (start_d - timedelta(days=7)).isoformat()
+    next_week = (start_d + timedelta(days=7)).isoformat()
+    day_names = ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"]
+    month_names = ["jan","fév","mar","avr","mai","jun","jul","aoû","sep","oct","nov","déc"]
+    end_d = start_d + timedelta(days=6)
+    week_label = (f"{start_d.day} {month_names[start_d.month-1]} → "
+                  f"{end_d.day} {month_names[end_d.month-1]} {end_d.year}")
+    result = crud.get_week_shopping_list(start)
+    return render_template("shopping.html",
+                           result=result, start=start,
+                           prev_week=prev_week, next_week=next_week,
+                           week_label=week_label)
+
+
+# ── API: Library search for dashboard quick-add ───────────────────────────────
+
+@app.route("/api/library/search")
+def api_library_search():
+    q = request.args.get("q","").strip()
+    if len(q) < 2:
+        return jsonify([])
+    entries = crud.list_library(search=q)
+    # Return minimal data needed for quick-add
+    return jsonify([{
+        "id": e["id"],
+        "name": e["name"],
+        "brand": e.get("brand",""),
+        "kcal_100g": e.get("kcal_100g"),
+        "protein_g_100g": e.get("protein_g_100g"),
+        "carbs_g_100g": e.get("carbs_g_100g"),
+        "fat_g_100g": e.get("fat_g_100g"),
+    } for e in entries[:8]])
+
+
+# ── API: Nutri-Score for a recipe ─────────────────────────────────────────────
+
+@app.route("/api/recipe/<int:recipe_id>/nutriscore")
+def api_nutri_score(recipe_id):
+    recipe = crud.get_recipe(recipe_id)
+    if not recipe:
+        return jsonify({}), 404
+    ns = recipe.nutri_score()
+    return jsonify(ns or {})
 
 
 if __name__ == "__main__":

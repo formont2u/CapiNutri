@@ -122,6 +122,17 @@ def init_db() -> None:
                 instructions TEXT,
                 created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+            CREATE TABLE IF NOT EXISTS tags (
+                id    INTEGER PRIMARY KEY AUTOINCREMENT,
+                name  TEXT NOT NULL UNIQUE,
+                color TEXT DEFAULT '#888888',
+                icon  TEXT DEFAULT 'bi-tag'
+            );
+            CREATE TABLE IF NOT EXISTS recipe_tags (
+                recipe_id INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+                tag_id    INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+                PRIMARY KEY (recipe_id, tag_id)
+            );
             CREATE TABLE IF NOT EXISTS ingredients (
                 id        INTEGER PRIMARY KEY AUTOINCREMENT,
                 recipe_id INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
@@ -144,6 +155,7 @@ def init_db() -> None:
                 sex            TEXT,
                 activity_level TEXT DEFAULT 'moderate',
                 goal           TEXT DEFAULT 'maintain',
+                meals_per_day  INTEGER DEFAULT 3,
                 goal_kcal      REAL, goal_protein_g REAL,
                 goal_carbs_g   REAL, goal_fat_g     REAL,
                 updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -185,6 +197,17 @@ def init_db() -> None:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
             CREATE INDEX IF NOT EXISTS idx_lib_search ON ingredient_library(search_key);
+            -- ── Meal Plan ──────────────────────────────────────────────────────────
+            CREATE TABLE IF NOT EXISTS meal_plan (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                plan_date  DATE    NOT NULL,
+                meal_type  TEXT    NOT NULL,  -- breakfast / lunch / dinner / snack
+                recipe_id  INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+                is_logged  INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(plan_date, meal_type)
+            );
+            CREATE INDEX IF NOT EXISTS idx_plan_date ON meal_plan(plan_date);
         """)
     _run_migrations()
 
@@ -192,6 +215,10 @@ def init_db() -> None:
 def _run_migrations() -> None:
     """Safely add any missing columns to existing databases."""
     with get_connection() as conn:
+        # user_profile extras
+        up_cols = {row[1] for row in conn.execute("PRAGMA table_info(user_profile)")}
+        if "meals_per_day" not in up_cols:
+            conn.execute("ALTER TABLE user_profile ADD COLUMN meals_per_day INTEGER DEFAULT 3")
         ing_cols = {row[1] for row in conn.execute("PRAGMA table_info(ingredients)")}
         log_cols = {row[1] for row in conn.execute("PRAGMA table_info(food_log)")}
         lib_cols = {row[1] for row in conn.execute("PRAGMA table_info(ingredient_library)")}

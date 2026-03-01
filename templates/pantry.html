@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% block title %}Garde-manger{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div>
+    <h1><i class="bi bi-basket3-fill" style="color:var(--accent)"></i> Garde-manger</h1>
+    <div class="subtitle">{{ items|length }} article{{ 's' if items|length != 1 }} en stock</div>
+  </div>
+</div>
+
+<div class="row g-4">
+
+  {# ── Left: Stock ── #}
+  <div class="col-lg-5">
+    <div class="form-panel">
+      <div class="section-title"><i class="bi bi-plus-circle"></i> Ajouter un article</div>
+      <form method="post" class="d-flex gap-2 flex-wrap align-items-end">
+        <input type="hidden" name="action" value="add">
+        <div style="flex:2;min-width:140px">
+          <label class="form-label-sm">Ingrédient</label>
+          <input class="form-control form-control-sm" name="name" placeholder="ex. Farine, Lait…" required>
+        </div>
+        <div style="flex:1;min-width:80px">
+          <label class="form-label-sm">Quantité</label>
+          <input class="form-control form-control-sm" name="quantity" type="number" min="0" step="any" placeholder="500">
+        </div>
+        <div style="flex:1;min-width:70px">
+          <label class="form-label-sm">Unité</label>
+          <input class="form-control form-control-sm" name="unit" placeholder="g, L, pcs…">
+        </div>
+        <button class="btn btn-accent btn-sm" type="submit">
+          <i class="bi bi-plus-lg"></i> Ajouter
+        </button>
+      </form>
+
+      {% if items %}
+      <div class="mt-4">
+        <div class="section-title"><i class="bi bi-list-ul"></i> En stock</div>
+        <table class="lib-table mt-2">
+          <thead>
+            <tr>
+              <th>Article</th>
+              <th style="text-align:right">Quantité</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for item in items %}
+          <tr class="pantry-row" data-id="{{ item.id }}">
+            <td class="lib-name pantry-name-cell">
+              <span class="pantry-display">{{ item.name }}</span>
+              <input class="form-control form-control-sm pantry-edit-input d-none"
+                     name="name" value="{{ item.name }}">
+            </td>
+            <td class="lib-num pantry-qty-cell">
+              <span class="pantry-display">
+                {% if item.quantity %}{{ item.quantity|round(1) }}{% endif %}
+                {% if item.unit %}{{ item.unit }}{% endif %}
+                {% if not item.quantity and not item.unit %}—{% endif %}
+              </span>
+              <span class="pantry-edit-fields d-none d-flex gap-1 justify-content-end">
+                <input class="form-control form-control-sm" name="quantity" type="number"
+                       step="any" min="0" value="{{ item.quantity or '' }}" style="width:70px">
+                <input class="form-control form-control-sm" name="unit"
+                       value="{{ item.unit or '' }}" placeholder="unité" style="width:55px">
+              </span>
+            </td>
+            <td>
+              <div class="pantry-display lib-actions">
+                <button type="button" class="btn btn-sm btn-outline-secondary pantry-edit-btn"
+                        data-id="{{ item.id }}" title="Modifier">
+                  <i class="bi bi-pencil"></i>
+                </button>
+                <form method="post" style="display:inline"
+                      onsubmit="return confirm('Supprimer « {{ item.name }} » ?')">
+                  <input type="hidden" name="action" value="delete">
+                  <input type="hidden" name="item_id" value="{{ item.id }}">
+                  <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                </form>
+              </div>
+              <div class="pantry-edit-fields d-none lib-actions">
+                <form method="post" class="pantry-save-form">
+                  <input type="hidden" name="action" value="update">
+                  <input type="hidden" name="item_id" value="{{ item.id }}">
+                  <button class="btn btn-sm btn-accent pantry-save-btn" type="submit">
+                    <i class="bi bi-check2"></i>
+                  </button>
+                </form>
+                <button type="button" class="btn btn-sm btn-outline-secondary pantry-cancel-btn">
+                  <i class="bi bi-x"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty-state mt-4" style="padding:24px 0">
+        <i class="bi bi-basket3"></i>
+        <p>Garde-manger vide — ajoutez vos ingrédients disponibles.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Right: Recipes I can make ── #}
+  <div class="col-lg-7">
+    <div class="form-panel">
+      <div class="section-title">
+        <i class="bi bi-magic"></i> Ce que je peux cuisiner
+        <span style="font-size:.75rem;font-weight:400;color:#888"> — basé sur votre stock</span>
+      </div>
+
+      {% if not items %}
+      <div class="empty-state" style="padding:24px 0">
+        <i class="bi bi-question-circle"></i>
+        <p>Renseignez votre stock pour voir les recettes réalisables.</p>
+      </div>
+
+      {% elif cookable %}
+      <div class="cookable-list">
+        {% for r in cookable %}
+        <div class="cookable-row {{ 'fully-cookable' if r.cookable else 'almost-cookable' }}">
+          <div class="cookable-info">
+            <a href="{{ url_for('view_recipe', recipe_id=r.id) }}" class="cookable-name">
+              {{ r.name }}
+            </a>
+            {% if r.cookable %}
+            <span class="cookable-badge"><i class="bi bi-check2-circle"></i> Tout disponible</span>
+            {% else %}
+            <span class="almost-badge">
+              <i class="bi bi-exclamation-circle"></i>
+              Manque : {{ r.missing|join(', ') }}
+            </span>
+            {% endif %}
+          </div>
+          {% if r.total_kcal %}
+          <span class="kcal-chip"><i class="bi bi-fire"></i> {{ r.total_kcal|int }} kcal</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+
+      {% else %}
+      <div class="empty-state" style="padding:24px 0">
+        <i class="bi bi-journal-x"></i>
+        <p>Aucune recette réalisable avec le stock actuel.</p>
+        <a href="{{ url_for('new_recipe') }}" class="btn btn-outline-secondary btn-sm">
+          Créer des recettes
+        </a>
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Inline edit rows
+document.querySelectorAll('.pantry-edit-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const row = btn.closest('.pantry-row');
+    row.querySelectorAll('.pantry-display').forEach(el => el.classList.add('d-none'));
+    row.querySelectorAll('.pantry-edit-input, .pantry-edit-fields').forEach(el => el.classList.remove('d-none'));
+  });
+});
+document.querySelectorAll('.pantry-cancel-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const row = btn.closest('.pantry-row');
+    row.querySelectorAll('.pantry-display').forEach(el => el.classList.remove('d-none'));
+    row.querySelectorAll('.pantry-edit-input, .pantry-edit-fields').forEach(el => el.classList.add('d-none'));
+  });
+});
+
+// Wire save form: copy edited name+qty+unit fields into the save form
+document.querySelectorAll('.pantry-save-form').forEach(form => {
+  form.addEventListener('submit', () => {
+    const row = form.closest('.pantry-row');
+    const nameInput = row.querySelector('.pantry-edit-input');
+    const [qtyInput, unitInput] = row.querySelectorAll('.pantry-edit-fields input');
+    if (nameInput)  { const h = document.createElement('input'); h.type='hidden'; h.name='name';     h.value=nameInput.value;  form.appendChild(h); }
+    if (qtyInput)   { const h = document.createElement('input'); h.type='hidden'; h.name='quantity'; h.value=qtyInput.value;   form.appendChild(h); }
+    if (unitInput)  { const h = document.createElement('input'); h.type='hidden'; h.name='unit';     h.value=unitInput.value;  form.appendChild(h); }
+  });
+});
+</script>
+{% endblock %}

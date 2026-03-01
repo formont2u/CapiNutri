@@ -35,6 +35,7 @@
              value="{{ recipe.category if recipe and recipe.category else '' }}">
       <datalist id="cat-list">{% for cat in categories %}<option value="{{ cat }}">{% endfor %}</datalist>
     </div>
+	
     <div class="col-md-3">
       <label class="form-label">Portions</label>
       <input class="form-control" name="servings" type="number" min="0.5" step="0.5"
@@ -188,16 +189,34 @@ const OFF_MAP = {
   'vitamin-b12_100g':         { f: 'vit_b12_mcg',    m: 1000000  },
 };
 
-const GRAM_UNITS = new Set(['g','gr','gram','grams','gramme','grammes','kg']);
+const GRAM_UNITS = new Set(['g','gr','gram','grams','gramme','grammes']);
+const CONVERSIONS = {
+  'kg': 1000, 'kilo': 1000,
+  'ml': 1, 'cl': 10, 'dl': 100, 'l': 1000, 'litre': 1000, 'litres': 1000,
+  'cac': 5, 'càc': 5, 'tsp': 5, 'cuillère à café': 5,
+  'cas': 15, 'càs': 15, 'tbsp': 15, 'cuillère à soupe': 15, 'cuillère': 15,
+  'pincée': 0.5, 'pincee': 0.5, 'pinch': 0.5,
+  'tasse': 250, 'cup': 250, 'verre': 200,
+  'oignon': 80, 'onion': 80, 'gousse': 5, 'clove': 5,
+  'pièce': 100, 'piece': 100, 'unité': 100
+};
 
 function toGrams(qty, unit) {
-  const u = (unit||''). toLowerCase().trim();
-  if (u === 'kg') return qty * 1000;
-  return (GRAM_UNITS.has(u) || u === '') ? qty : null;
+  const u = (unit||'').toLowerCase().trim();
+  if (u === '' || GRAM_UNITS.has(u)) return qty;
+  
+  // Vérification stricte
+  if (CONVERSIONS[u]) return qty * CONVERSIONS[u];
+  
+  // Si l'utilisateur tape "1 cas d'huile", on cherche le mot exact
+  const words = u.replace(/[.,']/g, ' ').split(/\s+/);
+  for (const w of words) {
+    if (CONVERSIONS[w]) return qty * CONVERSIONS[w];
+  }
+  return null;
 }
 
 async function searchOFF(q, source) {
-  // source: 'usda' (fast, raw foods) or 'off' (branded products, all languages)
   const r = await fetch(`/api/search_food?q=${encodeURIComponent(q)}&source=${source}`);
   if (!r.ok) throw new Error('search error');
   return await r.json();
@@ -208,13 +227,22 @@ function getSource(block) {
 }
 
 function fillFromBackend(block, product, qty, unit) {
-  // product.per_100g is already converted to our units (g, mg, µg)
   const per100g = product.per_100g || {};
   if (!Object.keys(per100g).length) return false;
+  
+  block.dataset.per100g = JSON.stringify(per100g);
 
-  const grams = toGrams(parseFloat(qty) || 100, unit);
-  const scale = grams !== null ? grams / 100 : 1;
-  const unknownUnit = grams === null && parseFloat(qty) > 0;
+  // Correction du bug "100 cuillères à soupe"
+  let parsedQty = parseFloat(qty);
+  if (isNaN(parsedQty)) {
+    const u = (unit||'').toLowerCase().trim();
+    // Si c'est vide ou en grammes, on affiche pour 100. Sinon, on assume 1 unité (1 cas, 1 oignon)
+    parsedQty = (u === '' || GRAM_UNITS.has(u)) ? 100 : 1; 
+  }
+
+  const grams = toGrams(parsedQty, unit);
+  const scale = grams !== null ? grams / 100 : parsedQty / 100;
+  const unknownUnit = grams === null && parsedQty > 0;
 
   let filled = 0;
   for (const [field, val] of Object.entries(per100g)) {
@@ -225,10 +253,8 @@ function fillFromBackend(block, product, qty, unit) {
   }
   if (!filled) return false;
 
-  // Source badge
   const srcRow = block.querySelector('.off-source-row');
   const srcBadge = block.querySelector('.off-source-badge');
-  const isLib = product.source === 'library';
   if (srcBadge) {
     const srcLabels = {
       library: '<i class="bi bi-bookmark-fill"></i> Bibliothèque',
@@ -238,13 +264,16 @@ function fillFromBackend(block, product, qty, unit) {
     srcBadge.innerHTML = srcLabels[product.source] || srcLabels.off;
     srcBadge.className = 'off-source-badge src-badge-' + (product.source || 'off');
   }
-  const label = product.label || product.name;
-  block.querySelector('.off-source-product').textContent = label;
+  
+  block.querySelector('.off-source-product').textContent = product.label || product.name;
   const scaleEl = block.querySelector('.off-scale-note');
+  
   if (unknownUnit) {
-    scaleEl.innerHTML = `<span class="off-warn"><i class="bi bi-exclamation-triangle-fill"></i> Unité inconnue — valeurs pour 100g</span>`;
+    scaleEl.innerHTML = `<span class="off-warn"><i class="bi bi-exclamation-triangle-fill"></i> Unité inconnue (calculé en g/ml)</span>`;
   } else {
-    scaleEl.textContent = `Pour ${parseFloat(qty)||100}\u202f${unit||'g'}`;
+    // Affiche intelligemment "Pour 1 cas" ou "Pour 100 g"
+    const displayQty = isNaN(parseFloat(qty)) ? parsedQty : parseFloat(qty);
+    scaleEl.textContent = `Pour ${displayQty}\u202f${unit||'g'}`;
   }
   srcRow.style.display = 'flex';
 
@@ -285,18 +314,16 @@ function renderDropdown(dd, products, block) {
       const qty  = block.querySelector('.ing-qty-input').value;
       const unit = block.querySelector('.ing-unit-input').value.trim();
       if (!fillFromBackend(block, p, qty, unit)) { showToast('Données insuffisantes.', 'warn'); return; }
-      // Save to local library (fire-and-forget)
       try {
         await fetch('/api/library/save', {
           method: 'POST',
           headers: {'Content-Type':'application/json'},
           body: JSON.stringify({
             name: p.name, brand: p.brand||'', barcode: p.barcode||'',
-            per_100g: p.per_100g,
-            library_id: isLib ? p.id : null,
+            per_100g: p.per_100g, library_id: isLib ? p.id : null,
           })
         });
-      } catch(e) { /* non-blocking */ }
+      } catch(e) {}
     };
     item.addEventListener('mousedown', pick);
     item.addEventListener('keydown', e => e.key === 'Enter' && pick(e));
@@ -369,7 +396,6 @@ function wireSourceToggle(block) {
     btn.addEventListener('click', () => {
       block.querySelectorAll('.src-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      // Reset dropdown so next keystroke re-searches with new source
       const dd = block.querySelector('.off-dropdown');
       if (dd) { dd.innerHTML = ''; dd.style.display = 'none'; }
       block.querySelector('.off-name-input')?.focus();
@@ -385,6 +411,35 @@ function wireRow(block) {
   wireNutrTabs(block);
   wireSourceToggle(block);
   wireOFF(block);
+
+  const qtyInp = block.querySelector('.ing-qty-input');
+  const unitInp = block.querySelector('.ing-unit-input');
+
+  const recalc = () => {
+    if (!block.dataset.per100g) return; 
+    
+    const per100g = JSON.parse(block.dataset.per100g);
+    const qty = parseFloat(qtyInp.value) || 0;
+    const grams = toGrams(qty, unitInp.value);
+    
+    // Si on ne reconnait pas l'unité, on applique la quantité brute (assimilée à des g/ml)
+    const scale = grams !== null ? grams / 100 : qty / 100;
+
+    for (const [field, val] of Object.entries(per100g)) {
+      const inp = block.querySelector(`input[data-field="${field}"]`);
+      if (inp) inp.value = parseFloat((val * scale).toFixed(4));
+    }
+    
+    const kcalI = block.querySelector('input[data-field="kcal"]');
+    if (kcalI?.value && toggle) {
+      let badge = toggle.querySelector('.kcal-badge');
+      if (!badge) { badge = document.createElement('span'); badge.className = 'kcal-badge'; toggle.appendChild(badge); }
+      badge.textContent = Math.round(parseFloat(kcalI.value)) + ' kcal';
+    }
+  };
+
+  qtyInp.addEventListener('input', recalc);
+  unitInp.addEventListener('input', recalc);
 }
 
 const LABELS = {{ NUTRIENT_LABELS | tojson }};
@@ -420,8 +475,8 @@ function buildRow() {
         <button type="button" class="src-btn src-usda active" data-source="usda">🥦 Brut</button>
         <button type="button" class="src-btn src-off" data-source="off">🏷️ Marque</button>
       </div>
-      <input class="form-control form-control-sm ing-qty-input" name="ing_qty" placeholder="200" type="number" min="0" step="any">
-      <input class="form-control form-control-sm ing-unit-input" name="ing_unit" placeholder="g, ml...">
+      <input class="form-control form-control-sm ing-qty-input" name="ing_qty" placeholder="100" type="number" min="0" step="any">
+      <input class="form-control form-control-sm ing-unit-input" name="ing_unit" placeholder="g, ml, cas...">
       <button type="button" class="btn-nutr-toggle" title="Nutrition"><i class="bi bi-bar-chart-line"></i></button>
       <button type="button" class="btn-remove-ing"><i class="bi bi-x-lg"></i></button>
     </div>
@@ -446,9 +501,32 @@ function showToast(msg, type='info') {
   setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 3500);
 }
 
+// ── INITIALISATION POUR LES RECETTES EXISTANTES ──
+document.querySelectorAll('.ing-block').forEach(block => {
+  if (!block.dataset.per100g) {
+    const qty = parseFloat(block.querySelector('.ing-qty-input')?.value) || 0;
+    const unit = block.querySelector('.ing-unit-input')?.value || '';
+    const grams = toGrams(qty, unit);
+    const scale = grams !== null ? grams / 100 : (qty > 0 ? qty / 100 : 1);
+
+    if (scale > 0) {
+      const per100g = {};
+      let hasData = false;
+      block.querySelectorAll('.nutr-input').forEach(inp => {
+        const val = parseFloat(inp.value);
+        if (!isNaN(val)) {
+          per100g[inp.dataset.field] = val / scale;
+          hasData = true;
+        }
+      });
+      if (hasData) block.dataset.per100g = JSON.stringify(per100g);
+    }
+  }
+  wireRow(block);
+});
+
 document.getElementById('addIng').addEventListener('click', () => {
   const r = buildRow(); document.getElementById('ingList').appendChild(r); r.querySelector('input').focus();
 });
-document.querySelectorAll('.ing-block').forEach(wireRow);
 </script>
 {% endblock %}

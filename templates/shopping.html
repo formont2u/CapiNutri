@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Liste de courses — {{ week_label }}{% endblock %}
+
+{% block content %}
+<div class="plan-header">
+  <a href="{{ url_for('shopping_list', start=prev_week) }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-chevron-left"></i>
+  </a>
+  <div class="plan-date-display">
+    <h1 class="plan-day" style="font-size:1.2rem">
+      <i class="bi bi-cart3" style="color:var(--accent)"></i>
+      Liste de courses · {{ week_label }}
+    </h1>
+  </div>
+  <a href="{{ url_for('shopping_list', start=next_week) }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-chevron-right"></i>
+  </a>
+  <button class="btn btn-sm btn-outline-secondary ms-2" onclick="window.print()" title="Imprimer">
+    <i class="bi bi-printer"></i>
+  </button>
+</div>
+
+{% if result.days %}
+<div class="row g-4 mt-1">
+
+  {# ── Left: planned meals this week ── #}
+  <div class="col-lg-4">
+    <div class="form-panel">
+      <div class="section-title"><i class="bi bi-calendar2-week"></i> Repas planifiés</div>
+      {% set ns = namespace(last_date="") %}
+      {% for d in result.days %}
+      {% if d.plan_date != ns.last_date %}
+      {% set ns.last_date = d.plan_date %}
+      {% set parts = d.plan_date.split('-') %}
+      {% set day_names = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'] %}
+      {% set month_names = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'] %}
+      <div class="shopping-date-header">
+        {{ day_names[d.plan_date | strftime_dow] if d.plan_date | strftime_dow is defined else '' }}
+        {{ parts[2]|int }} {{ month_names[parts[1]|int - 1] }}
+      </div>
+      {% endif %}
+      <div class="shopping-meal-row">
+        <span class="shopping-meal-type">{{ d.meal_type }}</span>
+        <a href="{{ url_for('view_recipe', recipe_id=d.recipe_id) }}" class="shopping-recipe-link">
+          {{ d.recipe_name }}
+        </a>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# ── Right: shopping list ── #}
+  <div class="col-lg-8">
+    <div class="form-panel">
+      <div class="section-title d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-list-check"></i> À acheter ({{ result.items|length }} articles)</span>
+        <button class="btn btn-sm btn-outline-secondary" id="checkAllBtn">
+          <i class="bi bi-check2-all"></i> Tout cocher
+        </button>
+      </div>
+
+      {% if result.items %}
+      <ul class="shopping-checklist" id="shoppingList">
+        {% for item in result.items %}
+        <li class="shopping-item" id="si-{{ loop.index }}">
+          <label class="shopping-label">
+            <input type="checkbox" class="shopping-check"
+                   onchange="this.closest('.shopping-item').classList.toggle('checked', this.checked)">
+            <span class="shopping-item-name">{{ item.name }}</span>
+            <span class="shopping-item-qty">
+              {% for unit, total in item.total_by_unit.items() %}
+              <span class="shopping-qty-chip">
+                {{ total|round(1) }}{% if total == total|int %}{{ '' }}{% endif %}{% if unit %}&nbsp;{{ unit }}{% endif %}
+              </span>
+              {% endfor %}
+            </span>
+          </label>
+          {% if item.entries|length > 1 %}
+          <div class="shopping-recipes">
+            {% for e in item.entries %}
+            <span class="shopping-recipe-chip">{{ e.recipe }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+{% else %}
+<div class="empty-state mt-4">
+  <i class="bi bi-calendar-x"></i>
+  <p>Aucun repas planifié pour cette semaine.</p>
+  <a href="{{ url_for('meal_plan') }}" class="btn btn-accent">Aller au planning</a>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Check-all button
+document.getElementById('checkAllBtn')?.addEventListener('click', () => {
+  const all = document.querySelectorAll('.shopping-check');
+  const anyUnchecked = [...all].some(c => !c.checked);
+  all.forEach(c => {
+    c.checked = anyUnchecked;
+    c.closest('.shopping-item').classList.toggle('checked', anyUnchecked);
+  });
+});
+
+// Persist checked state in sessionStorage
+const KEY = 'shopping_{{ result.start_date }}';
+const saved = JSON.parse(sessionStorage.getItem(KEY) || '{}');
+document.querySelectorAll('.shopping-check').forEach((c, i) => {
+  if (saved[i]) { c.checked = true; c.closest('.shopping-item').classList.add('checked'); }
+  c.addEventListener('change', () => {
+    const state = {};
+    document.querySelectorAll('.shopping-check').forEach((ch, j) => state[j] = ch.checked);
+    sessionStorage.setItem(KEY, JSON.stringify(state));
+  });
+});
+</script>
+{% endblock %}
