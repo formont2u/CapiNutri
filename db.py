@@ -216,9 +216,40 @@ def _run_migrations() -> None:
     """Safely add any missing columns to existing databases."""
     with get_connection() as conn:
         # user_profile extras
+        # Table des utilisateurs
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+           )
+        """)
+        
+        # ── MIGRATION MULTI-COMPTES ──
+        tables_to_update = [
+            "user_profile", 
+            "pantry", 
+            "meal_plan", 
+            "food_log", 
+            "exercise_log", 
+            "daily_goals"
+        ]
+        for table in tables_to_update:
+            try:
+                # On met DEFAULT 1 pour que tes anciennes données soient attribuées à ton premier compte
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN user_id INTEGER DEFAULT 1")
+            except Exception:
+                pass # La colonne a déjà été ajoutée, tout va bien !
+
         up_cols = {row[1] for row in conn.execute("PRAGMA table_info(user_profile)")}
         if "meals_per_day" not in up_cols:
             conn.execute("ALTER TABLE user_profile ADD COLUMN meals_per_day INTEGER DEFAULT 3")
+        if "current_bf_pct" not in up_cols:
+            conn.execute("ALTER TABLE user_profile ADD COLUMN current_bf_pct REAL")
+            conn.execute("ALTER TABLE user_profile ADD COLUMN goal_weight_kg REAL")
+            conn.execute("ALTER TABLE user_profile ADD COLUMN goal_bf_pct REAL")
+        
         ing_cols = {row[1] for row in conn.execute("PRAGMA table_info(ingredients)")}
         log_cols = {row[1] for row in conn.execute("PRAGMA table_info(food_log)")}
         lib_cols = {row[1] for row in conn.execute("PRAGMA table_info(ingredient_library)")}

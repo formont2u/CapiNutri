@@ -1,0 +1,29 @@
+{% extends "auth_base.html" %}
+{% block title %}Connexion — Capynutri{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+  <div class="col-md-6 col-lg-4">
+    <div class="panel border-0 shadow-sm text-center p-4">
+      <i class="bi bi-person-circle text-accent mb-3" style="font-size: 3rem;"></i>
+      <h3 class="fw-bold mb-4">Bon retour !</h3>
+      
+      <form method="post">
+        <div class="mb-3 text-start">
+          <label class="form-label text-muted small fw-bold text-uppercase">Nom d'utilisateur</label>
+          <input type="text" class="form-control" name="username" required>
+        </div>
+        <div class="mb-4 text-start">
+          <label class="form-label text-muted small fw-bold text-uppercase">Mot de passe</label>
+          <input type="password" class="form-control" name="password" required>
+        </div>
+        <button type="submit" class="btn btn-accent w-100 fw-bold py-2"><i class="bi bi-box-arrow-in-right"></i> Se connecter</button>
+      </form>
+      
+      <div class="mt-4 text-muted small">
+        Pas encore de compte ? <a href="{{ url_for('register') }}" class="text-accent text-decoration-none fw-bold">S'inscrire</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

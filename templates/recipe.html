@@ -96,9 +96,9 @@
       {% if total %}
       {% set macro_total = (total.protein_g or 0) + (total.carbs_g or 0) + (total.fat_g or 0) %}
       <div class="macro-bars" id="macroBars"
-           data-p-total="{{ total.protein_g }}"  data-p-per="{{ per_serving.protein_g if per_serving else 0 }}"
-           data-c-total="{{ total.carbs_g }}"    data-c-per="{{ per_serving.carbs_g if per_serving else 0 }}"
-           data-f-total="{{ total.fat_g }}"      data-f-per="{{ per_serving.fat_g if per_serving else 0 }}"
+           data-p-total="{{ total.protein_g or 0 }}"  data-p-per="{{ per_serving.protein_g if per_serving else 0 }}"
+           data-c-total="{{ total.carbs_g or 0 }}"    data-c-per="{{ per_serving.carbs_g if per_serving else 0 }}"
+           data-f-total="{{ total.fat_g or 0 }}"      data-f-per="{{ per_serving.fat_g if per_serving else 0 }}"
            data-macro-total="{{ macro_total }}">
         {% set pct_p = ((total.protein_g or 0) / macro_total * 100) | round(1) if macro_total > 0 else 0 %}
         {% set pct_c = ((total.carbs_g   or 0) / macro_total * 100) | round(1) if macro_total > 0 else 0 %}
@@ -109,24 +109,75 @@
           <div class="macro-bar-wrap">
             <div class="macro-bar" style="width:{{ pct_p }}%;background:#4a90e2" id="barProtein"></div>
           </div>
-          <div class="macro-val" id="valProtein">{{ total.protein_g }}g</div>
+          <div class="macro-val" id="valProtein">{{ (total.protein_g or 0)|round(1) }}g</div>
         </div>
         <div class="macro-row">
           <div class="macro-label"><span class="macro-dot" style="background:#f5a623"></span>Glucides</div>
           <div class="macro-bar-wrap">
             <div class="macro-bar" style="width:{{ pct_c }}%;background:#f5a623" id="barCarbs"></div>
           </div>
-          <div class="macro-val" id="valCarbs">{{ total.carbs_g }}g</div>
+          <div class="macro-val" id="valCarbs">{{ (total.carbs_g or 0)|round(1) }}g</div>
         </div>
         <div class="macro-row">
           <div class="macro-label"><span class="macro-dot" style="background:#e8571a"></span>Lipides</div>
           <div class="macro-bar-wrap">
             <div class="macro-bar" style="width:{{ pct_f }}%;background:#e8571a" id="barFat"></div>
           </div>
-          <div class="macro-val" id="valFat">{{ total.fat_g }}g</div>
+          <div class="macro-val" id="valFat">{{ (total.fat_g or 0)|round(1) }}g</div>
+        </div>
+      </div>
+      {% endif %} {% if total %}
+      <div class="nutr-micros mt-4 mb-3">
+        <h6 class="text-muted mb-3" style="font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
+          <i class="bi bi-heart-pulse text-danger"></i> Santé & Micronutriments
+        </h6>
+        
+        <div class="row g-2" style="font-size: 0.85rem;">
+          <div class="col-6">
+            <div class="p-2 bg-light rounded h-100">
+              <div class="d-flex justify-content-between mb-1">
+                <span class="text-muted">Fibres</span>
+                <strong class="text-success" id="valFiber" data-base="{{ total.fiber_g or 0 }}">{{ (total.fiber_g or 0)|round(1) }} g</strong>
+              </div>
+              <div class="d-flex justify-content-between mb-1">
+                <span class="text-muted">Sucres</span>
+                <strong class="text-warning" id="valSugar" data-base="{{ total.sugars_g or 0 }}">{{ (total.sugars_g or 0)|round(1) }} g</strong>
+              </div>
+              <div class="d-flex justify-content-between mb-1">
+                <span class="text-muted">Gras saturé</span>
+                <strong class="text-danger" id="valSatFat" data-base="{{ total.saturated_g or 0 }}">{{ (total.saturated_g or 0)|round(1) }} g</strong>
+              </div>
+              <div class="d-flex justify-content-between">
+                <span class="text-muted">Oméga 3</span>
+                <strong class="text-primary" id="valOmega" data-base="{{ total.omega3_g or 0 }}">{{ (total.omega3_g or 0)|round(2) }} g</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-6">
+            <div class="p-2 bg-light rounded h-100">
+              <div class="d-flex justify-content-between mb-1">
+                <span class="text-muted">Sodium</span>
+                <strong id="valSodium" data-base="{{ total.sodium_mg or 0 }}">{{ (total.sodium_mg or 0)|round(0) }} mg</strong>
+              </div>
+              <div class="d-flex justify-content-between mb-1">
+                <span class="text-muted">Fer</span>
+                <strong id="valIron" data-base="{{ total.iron_mg or 0 }}">{{ (total.iron_mg or 0)|round(1) }} mg</strong>
+              </div>
+              <div class="d-flex justify-content-between mb-1">
+                <span class="text-muted">Magnésium</span>
+                <strong id="valMag" data-base="{{ total.magnesium_mg or 0 }}">{{ (total.magnesium_mg or 0)|round(0) }} mg</strong>
+              </div>
+              <div class="d-flex justify-content-between">
+                <span class="text-muted">Vitamine C</span>
+                <strong id="valVitC" data-base="{{ total.vit_c_mg or 0 }}">{{ (total.vit_c_mg or 0)|round(1) }} mg</strong>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       {% endif %}
+	  
 
       <!-- Per-ingredient breakdown (collapsible) -->
       <details class="nutr-details" id="nutrDetails">
@@ -260,6 +311,32 @@ function updateAll(servings) {
   valProtein.textContent = fmt(Math.round(dispP * 10)/10) + 'g';
   valCarbs.textContent   = fmt(Math.round(dispC * 10)/10) + 'g';
   valFat.textContent     = fmt(Math.round(dispF * 10)/10) + 'g';
+  
+  // --- MISE À JOUR DES MICRONUTRIMENTS ---
+  const microIds = ['Fiber', 'Sugar', 'SatFat', 'Omega', 'Sodium', 'Iron', 'Mag', 'VitC'];
+  microIds.forEach(id => {
+    const el = document.getElementById('val' + id);
+    if (!el) return;
+    const baseVal = parseFloat(el.dataset.base) || 0;
+    
+    // On calcule la valeur mise à l'échelle (scale)
+    let scaledVal = baseVal * scale;
+    
+    // Si on est en vue "Par portion", on divise par le nombre de portions actuelles
+    if (currentView === 'perserving' && servings > 0) {
+      scaledVal /= servings;
+    }
+    
+    // Formatage (pas de virgule pour le sel et magnésium, 2 virgules pour l'oméga, 1 pour le reste)
+    if (id === 'Sodium' || id === 'Mag') {
+      el.textContent = Math.round(scaledVal) + ' mg';
+    } else if (id === 'Omega') {
+      el.textContent = scaledVal.toFixed(2) + ' g';
+    } else {
+      el.textContent = scaledVal.toFixed(1) + (id === 'Iron' || id === 'VitC' ? ' mg' : ' g');
+    }
+  });
+  // ----------------------------------------
 
   // Update bars
   const macroTotal = dispP + dispC + dispF;

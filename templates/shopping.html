@@ -50,10 +50,11 @@
   </div>
 
   {# ── Right: shopping list ── #}
+  {# ── Right: shopping list intelligente ── #}
   <div class="col-lg-8">
-    <div class="form-panel">
+    <div class="form-panel mb-4">
       <div class="section-title d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-list-check"></i> À acheter ({{ result.items|length }} articles)</span>
+        <span><i class="bi bi-cart"></i> À acheter au magasin</span>
         <button class="btn btn-sm btn-outline-secondary" id="checkAllBtn">
           <i class="bi bi-check2-all"></i> Tout cocher
         </button>
@@ -62,30 +63,64 @@
       {% if result.items %}
       <ul class="shopping-checklist" id="shoppingList">
         {% for item in result.items %}
-        <li class="shopping-item" id="si-{{ loop.index }}">
-          <label class="shopping-label">
-            <input type="checkbox" class="shopping-check"
-                   onchange="this.closest('.shopping-item').classList.toggle('checked', this.checked)">
-            <span class="shopping-item-name">{{ item.name }}</span>
-            <span class="shopping-item-qty">
-              {% for unit, total in item.total_by_unit.items() %}
-              <span class="shopping-qty-chip">
-                {{ total|round(1) }}{% if total == total|int %}{{ '' }}{% endif %}{% if unit %}&nbsp;{{ unit }}{% endif %}
+          {% if item.to_buy %}
+          <li class="shopping-item" id="si-{{ loop.index }}">
+            <label class="shopping-label">
+              <input type="checkbox" class="shopping-check"
+                     onchange="this.closest('.shopping-item').classList.toggle('checked', this.checked)">
+              <span class="shopping-item-name">{{ item.name }}</span>
+              <span class="shopping-item-qty">
+                {% for unit, total in item.to_buy.items() %}
+                  <span class="shopping-qty-chip text-danger fw-bold">
+                    {{ total|round(1) }}{% if total == total|int %}{{ '' }}{% endif %}{% if unit %}&nbsp;{{ unit }}{% endif %}
+                  </span>
+                {% endfor %}
+                
+                {% if item.in_stock %}
+                  <span class="badge bg-success ms-2 p-1" style="font-size: 0.65rem;" title="Déduit du stock !">
+                    <i class="bi bi-box2-heart"></i> Stock déduit
+                  </span>
+                {% endif %}
               </span>
+            </label>
+            {% if item.entries|length > 1 %}
+            <div class="shopping-recipes">
+              {% for e in item.entries %}
+              <span class="shopping-recipe-chip">{{ e.recipe }}</span>
               {% endfor %}
-            </span>
-          </label>
-          {% if item.entries|length > 1 %}
-          <div class="shopping-recipes">
-            {% for e in item.entries %}
-            <span class="shopping-recipe-chip">{{ e.recipe }}</span>
-            {% endfor %}
-          </div>
+            </div>
+            {% endif %}
+          </li>
           {% endif %}
-        </li>
         {% endfor %}
       </ul>
       {% endif %}
+    </div>
+
+    <div class="form-panel bg-light border-0">
+      <div class="section-title text-success"><i class="bi bi-box-seam"></i> Déjà dans vos placards</div>
+      <ul class="list-group list-group-flush bg-transparent" style="font-size: 0.85rem;">
+        {% set has_stock = false %}
+        {% for item in result.items %}
+          {% if item.in_stock and not item.to_buy %}
+            {% set has_stock = true %}
+            <li class="list-group-item bg-transparent px-0 d-flex justify-content-between text-muted">
+              <span><i class="bi bi-check-circle-fill text-success me-2"></i> {{ item.name }}</span>
+              <span>
+                {% for unit, total in item.in_stock.items() %}
+                  {{ total|round(1) }}{% if total == total|int %}{{ '' }}{% endif %} {{ unit }}
+                {% endfor %}
+              </span>
+            </li>
+          {% endif %}
+        {% endfor %}
+        
+        {% if not has_stock %}
+          <li class="list-group-item bg-transparent px-0 text-muted fst-italic border-0">
+            Aucun ingrédient complet de cette semaine n'est couvert par votre stock actuel.
+          </li>
+        {% endif %}
+      </ul>
     </div>
   </div>
 

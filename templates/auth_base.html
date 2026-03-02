@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Capynutri{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  
+  <style>
+    /* Ta police officielle */
+    @font-face {
+      font-family: 'Radicalis';
+      src: url("{{ url_for('static', filename='radicalis.ttf') }}") format('truetype');
+    }
+    
+    /* Le fond saumon qui prend tout l'écran */
+    body {
+      background-color: #FF8C69; 
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    /* Le style du grand logo central */
+    .brand-landing {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .brand-landing img {
+      height: 120px;
+      border-radius: 20px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+      margin-bottom: 20px;
+    }
+    .brand-landing .brand-name {
+      font-family: 'Radicalis', cursive;
+      color: #ffffff;
+      font-size: 5rem;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+      line-height: 1;
+    }
+
+    /* La carte blanche pour le formulaire */
+    .panel {
+      background: white;
+      border-radius: 12px;
+      padding: 2rem;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="brand-landing">
+    <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo Capynutri">
+    <div class="brand-name">Capynutri</div>
+  </div>
+  
+  <div class="container">
+    {% include "flash_messages.html" ignore missing %}
+    {% block content %}{% endblock %}
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

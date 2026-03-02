@@ -159,40 +159,44 @@ def recipe_count() -> int:
 
 # ── User Profile ──────────────────────────────────────────────────────────────
 
-def get_profile() -> UserProfile:
+# ── Profil Utilisateur (Multi-comptes) ────────────────────────────────────────
+
+def get_profile(user_id: int) -> UserProfile:
     with get_connection() as conn:
-        row = conn.execute("SELECT * FROM user_profile WHERE id=1").fetchone()
+        # On cherche le profil de L'UTILISATEUR connecté, plus l'id=1 fixe
+        row = conn.execute("SELECT * FROM user_profile WHERE user_id=?", (user_id,)).fetchone()
         if not row:
             return UserProfile()
-        keys = [k for k in row.keys() if k != 'updated_at']
-        return UserProfile(**{k: row[k] for k in keys})
+            
+        from dataclasses import fields
+        valid_keys = {f.name for f in fields(UserProfile)}
+        kwargs = {k: row[k] for k in row.keys() if k in valid_keys}
+        return UserProfile(**kwargs)
 
-
-def save_profile(p: UserProfile) -> None:
+def save_profile(p: UserProfile, user_id: int):
     with get_connection() as conn:
+        # On supprime l'ancien profil de CET utilisateur
+        conn.execute("DELETE FROM user_profile WHERE user_id=?", (user_id,))
+        
+        # On insère le nouveau avec son user_id
         conn.execute("""
-            INSERT INTO user_profile (id,name,weight_kg,height_cm,age,sex,activity_level,goal,
-                goal_kcal,goal_protein_g,goal_carbs_g,goal_fat_g,meals_per_day,updated_at)
-            VALUES (1,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
-            ON CONFLICT(id) DO UPDATE SET
-                name=excluded.name, weight_kg=excluded.weight_kg,
-                height_cm=excluded.height_cm, age=excluded.age, sex=excluded.sex,
-                activity_level=excluded.activity_level, goal=excluded.goal,
-                goal_kcal=excluded.goal_kcal, goal_protein_g=excluded.goal_protein_g,
-                goal_carbs_g=excluded.goal_carbs_g, goal_fat_g=excluded.goal_fat_g,
-                meals_per_day=excluded.meals_per_day,
-                updated_at=CURRENT_TIMESTAMP
-        """, (p.name, p.weight_kg, p.height_cm, p.age, p.sex, p.activity_level, p.goal,
-              p.goal_kcal, p.goal_protein_g, p.goal_carbs_g, p.goal_fat_g, p.meals_per_day))
-
-
+            INSERT INTO user_profile (
+                user_id, name, weight_kg, height_cm, age, sex, 
+                activity_level, goal, meals_per_day,
+                current_bf_pct, goal_weight_kg, goal_bf_pct
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            user_id, p.name, p.weight_kg, p.height_cm, p.age, p.sex,
+            p.activity_level, p.goal, p.meals_per_day,
+            p.current_bf_pct, p.goal_weight_kg, p.goal_bf_pct
+        ))
 # ── Food Log ──────────────────────────────────────────────────────────────────
 
 _LOG_FIELDS = ["id","log_date","meal_type","recipe_id","label","servings"] + NUTRIENT_FIELDS
 
-def add_food_log(entry: FoodLogEntry) -> int:
-    fields = ["log_date","meal_type","recipe_id","label","servings"] + NUTRIENT_FIELDS
-    vals   = [entry.log_date, entry.meal_type, entry.recipe_id, entry.label, entry.servings]
+def add_food_log(user_id: int, entry: FoodLogEntry) -> int:
+    fields = ["user_id", "log_date", "meal_type", "recipe_id", "label", "servings"] + NUTRIENT_FIELDS
+    vals   = [user_id, entry.log_date, entry.meal_type, entry.recipe_id, entry.label, entry.servings]
     vals  += [getattr(entry, f, None) for f in NUTRIENT_FIELDS]
     with get_connection() as conn:
         return conn.execute(
@@ -200,19 +204,26 @@ def add_food_log(entry: FoodLogEntry) -> int:
             vals
         ).lastrowid
 
-
-def get_food_log_day(date_str: str) -> list[FoodLogEntry]:
+def get_food_log_day(user_id: int, date_str: str) -> list[FoodLogEntry]:
     with get_connection() as conn:
         rows = conn.execute(
-            f"SELECT {','.join(_LOG_FIELDS)} FROM food_log WHERE log_date=? ORDER BY created_at",
-            (date_str,)
+            "SELECT * FROM food_log WHERE user_id=? AND log_date=?", 
+            (user_id, date_str)
         ).fetchall()
-        return [FoodLogEntry(**{k: r[k] for k in _LOG_FIELDS}) for r in rows]
+        
+        entries = []
+        for r in rows:
+            d = dict(r)
+            # On enlève les clés qui ne sont pas dans FoodLogEntry (comme id et user_id)
+            d.pop("id", None)
+            d.pop("user_id", None)
+            entries.append(FoodLogEntry(**d))
+        return entries
 
 
-def delete_food_log(entry_id: int) -> bool:
+def delete_food_log(user_id: int, entry_id: int) -> bool:
     with get_connection() as conn:
-        return conn.execute("DELETE FROM food_log WHERE id=?", (entry_id,)).rowcount > 0
+        return conn.execute("DELETE FROM food_log WHERE id=? AND user_id=?", (entry_id, user_id)).rowcount > 0
 
 
 def get_week_summary(start_date: str) -> list[dict]:
@@ -241,26 +252,33 @@ def sum_day_nutrition(entries: list[FoodLogEntry]) -> dict:
 
 # ── Exercise Log ──────────────────────────────────────────────────────────────
 
-def add_exercise(entry: ExerciseEntry) -> int:
+def add_exercise(user_id: int, entry: ExerciseEntry) -> int:
     with get_connection() as conn:
         return conn.execute(
-            "INSERT INTO exercise_log (log_date,name,kcal_burned,duration_min) VALUES (?,?,?,?)",
-            (entry.log_date, entry.name, entry.kcal_burned, entry.duration_min)
+            "INSERT INTO exercise_log (user_id, log_date, name, kcal_burned, duration_min) VALUES (?,?,?,?,?)",
+            (user_id, entry.log_date, entry.name, entry.kcal_burned, entry.duration_min)
         ).lastrowid
 
 
-def get_exercise_day(date_str: str) -> list[ExerciseEntry]:
+def get_exercise_day(user_id: int, date_str: str) -> list[ExerciseEntry]:
     with get_connection() as conn:
         rows = conn.execute(
-            "SELECT id,log_date,name,kcal_burned,duration_min FROM exercise_log WHERE log_date=? ORDER BY created_at",
-            (date_str,)
+            "SELECT * FROM exercise_log WHERE user_id=? AND log_date=?", 
+            (user_id, date_str)
         ).fetchall()
-        return [ExerciseEntry(**dict(r)) for r in rows]
+        
+        entries = []
+        for r in rows:
+            d = dict(r)
+            d.pop("id", None)
+            d.pop("user_id", None)
+            entries.append(ExerciseEntry(**d))
+        return entries
 
 
-def delete_exercise(entry_id: int) -> bool:
+def delete_exercise(user_id: int, entry_id: int) -> bool:
     with get_connection() as conn:
-        return conn.execute("DELETE FROM exercise_log WHERE id=?", (entry_id,)).rowcount > 0
+        return conn.execute("DELETE FROM exercise_log WHERE id=? AND user_id=?", (entry_id, user_id)).rowcount > 0
 
 
 def get_exercise_week(start_date: str) -> list[dict]:
@@ -276,26 +294,38 @@ def get_exercise_week(start_date: str) -> list[dict]:
 
 # ── Daily goal override ───────────────────────────────────────────────────────
 
-def get_daily_goal(date_str: str) -> Optional[dict]:
+def get_daily_goal(user_id: int, date_str: str) -> Optional[dict]:
     with get_connection() as conn:
-        row = conn.execute("SELECT * FROM daily_goals WHERE log_date=?", (date_str,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM daily_goals WHERE user_id=? AND goal_date=?", 
+            (user_id, date_str)
+        ).fetchone()
         return dict(row) if row else None
 
 
-def set_daily_goal(date_str: str, kcal: float, protein: float, carbs: float, fat: float) -> None:
+def set_daily_goal(user_id: int, date_str: str, kcal: float, protein: float, carbs: float, fat: float) -> int:
     with get_connection() as conn:
-        conn.execute("""
-            INSERT INTO daily_goals (log_date,goal_kcal,goal_protein_g,goal_carbs_g,goal_fat_g)
-            VALUES (?,?,?,?,?)
-            ON CONFLICT(log_date) DO UPDATE SET
-                goal_kcal=excluded.goal_kcal, goal_protein_g=excluded.goal_protein_g,
-                goal_carbs_g=excluded.goal_carbs_g, goal_fat_g=excluded.goal_fat_g
-        """, (date_str, kcal, protein, carbs, fat))
+        existing = conn.execute(
+            "SELECT id FROM daily_goals WHERE user_id=? AND goal_date=?", 
+            (user_id, date_str)
+        ).fetchone()
+        
+        if existing:
+            conn.execute(
+                "UPDATE daily_goals SET goal_kcal=?, goal_protein_g=?, goal_carbs_g=?, goal_fat_g=? WHERE id=?",
+                (kcal, protein, carbs, fat, existing["id"])
+            )
+            return existing["id"]
+        else:
+            return conn.execute(
+                "INSERT INTO daily_goals (user_id, goal_date, goal_kcal, goal_protein_g, goal_carbs_g, goal_fat_g) VALUES (?,?,?,?,?,?)",
+                (user_id, date_str, kcal, protein, carbs, fat)
+            )
 
 
-def delete_daily_goal(date_str: str) -> None:
+def delete_daily_goal(user_id: int, date_str: str) -> bool:
     with get_connection() as conn:
-        conn.execute("DELETE FROM daily_goals WHERE log_date=?", (date_str,))
+        return conn.execute("DELETE FROM daily_goals WHERE user_id=? AND goal_date=?", (user_id, date_str)).rowcount > 0
 
 
 # ── Ingredient Library ────────────────────────────────────────────────────────
@@ -356,9 +386,8 @@ MEAL_LABELS = {"breakfast": "Petit-déjeuner", "lunch": "Déjeuner",
 MEAL_ICONS  = {"breakfast": "bi-sunrise", "lunch": "bi-sun",
                "dinner": "bi-moon-stars", "snack": "bi-apple"}
 
-
-def get_plan(date_str: str) -> dict:
-    """Return the meal plan for a given date as {meal_type: {recipe, ...} | None}."""
+def get_plan(user_id: int, date_str: str) -> dict:
+    """Return the meal plan for a given user and date as {meal_type: {recipe, ...} | None}."""
     with get_connection() as conn:
         rows = conn.execute("""
             SELECT mp.meal_type, mp.id AS plan_id, mp.is_logged,
@@ -367,66 +396,67 @@ def get_plan(date_str: str) -> dict:
             FROM meal_plan mp
             JOIN recipes r ON r.id = mp.recipe_id
             LEFT JOIN ingredients i ON i.recipe_id = r.id
-            WHERE mp.plan_date = ?
+            WHERE mp.user_id = ? AND mp.plan_date = ?
             GROUP BY mp.id
-        """, (date_str,)).fetchall()
+        """, (user_id, date_str)).fetchall()
 
     plan = {t: None for t in MEAL_TYPES}
     for r in rows:
         plan[r["meal_type"]] = dict(r)
     return plan
 
-
-def set_plan_slot(date_str: str, meal_type: str, recipe_id: int) -> int:
-    """Set (upsert) a recipe for a meal slot. Returns plan row id."""
+def set_plan_slot(user_id: int, date_str: str, meal_type: str, recipe_id: int) -> int:
+    """Set (upsert) a recipe for a user's meal slot. Returns plan row id."""
     with get_connection() as conn:
         existing = conn.execute(
-            "SELECT id FROM meal_plan WHERE plan_date=? AND meal_type=?",
-            (date_str, meal_type)
+            "SELECT id FROM meal_plan WHERE user_id=? AND plan_date=? AND meal_type=?",
+            (user_id, date_str, meal_type)
         ).fetchone()
+        
         if existing:
             conn.execute(
-                "UPDATE meal_plan SET recipe_id=?, is_logged=0 WHERE id=?",
-                (recipe_id, existing["id"])
+                "UPDATE meal_plan SET recipe_id=?, is_logged=0 WHERE id=? AND user_id=?",
+                (recipe_id, existing["id"], user_id)
             )
             return existing["id"]
+            
         return conn.execute(
-            "INSERT INTO meal_plan (plan_date, meal_type, recipe_id) VALUES (?,?,?)",
-            (date_str, meal_type, recipe_id)
+            "INSERT INTO meal_plan (user_id, plan_date, meal_type, recipe_id) VALUES (?,?,?,?)",
+            (user_id, date_str, meal_type, recipe_id)
         ).lastrowid
 
-
-def clear_plan_slot(plan_id: int) -> bool:
+def clear_plan_slot(user_id: int, plan_id: int) -> bool:
     with get_connection() as conn:
-        return conn.execute("DELETE FROM meal_plan WHERE id=?", (plan_id,)).rowcount > 0
+        # Sécurité : on ne supprime que si ça appartient à user_id
+        return conn.execute("DELETE FROM meal_plan WHERE id=? AND user_id=?", (plan_id, user_id)).rowcount > 0
 
-
-def mark_plan_logged(plan_id: int) -> None:
+def mark_plan_logged(user_id: int, plan_id: int) -> None:
     with get_connection() as conn:
-        conn.execute("UPDATE meal_plan SET is_logged=1 WHERE id=?", (plan_id,))
+        # Sécurité : on ne met à jour que si ça appartient à user_id
+        conn.execute("UPDATE meal_plan SET is_logged=1 WHERE id=? AND user_id=?", (plan_id, user_id))
 
-
-def suggest_recipe(meal_type: str, date_str: str) -> Optional[dict]:
+def suggest_recipe(user_id: int, meal_type: str, date_str: str) -> Optional[dict]:
     """
-    Pick a random recipe for a meal slot, preferring recipes NOT logged recently (7 days).
+    Pick a random recipe for a meal slot, preferring recipes NOT logged recently by THIS USER (7 days).
     Returns a minimal recipe dict, or None if no recipes exist.
     """
     with get_connection() as conn:
-        # Recipes logged in the last 7 days (avoid repeats)
+        # Recipes logged in the last 7 days BY THIS USER (avoid repeats)
         recent = {r["recipe_id"] for r in conn.execute("""
             SELECT DISTINCT recipe_id FROM food_log
-            WHERE recipe_id IS NOT NULL
+            WHERE user_id = ? AND recipe_id IS NOT NULL
               AND log_date >= date(?, '-7 days') AND log_date < ?
-        """, (date_str, date_str)).fetchall() if r["recipe_id"]}
+        """, (user_id, date_str, date_str)).fetchall() if r["recipe_id"]}
 
-        # Also avoid what's already planned today
+        # Also avoid what's already planned today BY THIS USER
         planned = {r["recipe_id"] for r in conn.execute(
-            "SELECT recipe_id FROM meal_plan WHERE plan_date=?", (date_str,)
+            "SELECT recipe_id FROM meal_plan WHERE user_id=? AND plan_date=?", 
+            (user_id, date_str)
         ).fetchall()}
 
         excluded = recent | planned
 
-        # All recipes with their total kcal
+        # All recipes with their total kcal (Les recettes restent communes)
         rows = conn.execute("""
             SELECT r.id, r.name, r.servings, ROUND(SUM(i.kcal),0) AS total_kcal
             FROM recipes r
@@ -441,7 +471,6 @@ def suggest_recipe(meal_type: str, date_str: str) -> Optional[dict]:
     preferred = [r for r in rows if r["id"] not in excluded]
     pick = (preferred or list(rows))[0]
     return dict(pick)
-
 
 # ── Tags ──────────────────────────────────────────────────────────────────────
 
@@ -461,44 +490,54 @@ def get_recipe_tags(recipe_id: int) -> list[str]:
 
 # ── Pantry ────────────────────────────────────────────────────────────────────
 
-def list_pantry() -> list[dict]:
+def list_pantry(user_id: int) -> list[dict]:
     with get_connection() as conn:
         return [dict(r) for r in conn.execute(
-            "SELECT id, name, quantity, unit FROM pantry ORDER BY name"
+            "SELECT id, name, quantity, unit FROM pantry WHERE user_id=? ORDER BY name",
+            (user_id,)
         )]
 
-def add_pantry_item(name: str, quantity: Optional[float], unit: str) -> int:
+def add_pantry_item(user_id: int, name: str, quantity: Optional[float], unit: str) -> int:
     with get_connection() as conn:
-        try:
-            return conn.execute(
-                "INSERT INTO pantry (name, quantity, unit) VALUES (?,?,?)",
-                (name.strip(), quantity, unit.strip())
-            ).lastrowid
-        except Exception:
-            # Update if name already exists
+        # On vérifie si l'utilisateur possède déjà cet ingrédient
+        existing = conn.execute(
+            "SELECT id FROM pantry WHERE name=? AND user_id=?", 
+            (name.strip(), user_id)
+        ).fetchone()
+        
+        if existing:
+            # S'il existe déjà pour CET utilisateur, on met à jour la quantité
             conn.execute(
-                "UPDATE pantry SET quantity=?, unit=? WHERE name=?",
-                (quantity, unit.strip(), name.strip())
+                "UPDATE pantry SET quantity=?, unit=? WHERE id=?",
+                (quantity, unit.strip(), existing["id"])
             )
-            return conn.execute("SELECT id FROM pantry WHERE name=?", (name.strip(),)).fetchone()["id"]
+            return existing["id"]
+        else:
+            # Sinon, on le crée pour lui
+            return conn.execute(
+                "INSERT INTO pantry (user_id, name, quantity, unit) VALUES (?,?,?,?)",
+                (user_id, name.strip(), quantity, unit.strip())
+            ).lastrowid
 
-def update_pantry_item(item_id: int, name: str, quantity: Optional[float], unit: str) -> bool:
+def update_pantry_item(user_id: int, item_id: int, name: str, quantity: Optional[float], unit: str) -> bool:
     with get_connection() as conn:
+        # On sécurise la modification avec le user_id
         return conn.execute(
-            "UPDATE pantry SET name=?, quantity=?, unit=? WHERE id=?",
-            (name.strip(), quantity, unit.strip(), item_id)
+            "UPDATE pantry SET name=?, quantity=?, unit=? WHERE id=? AND user_id=?",
+            (name.strip(), quantity, unit.strip(), item_id, user_id)
         ).rowcount > 0
 
-def delete_pantry_item(item_id: int) -> bool:
+def delete_pantry_item(user_id: int, item_id: int) -> bool:
     with get_connection() as conn:
-        return conn.execute("DELETE FROM pantry WHERE id=?", (item_id,)).rowcount > 0
+        # On sécurise la suppression avec le user_id
+        return conn.execute("DELETE FROM pantry WHERE id=? AND user_id=?", (item_id, user_id)).rowcount > 0
 
-def get_cookable_recipes() -> list[dict]:
+def get_cookable_recipes(user_id: int) -> list[dict]:
     """
-    Return recipes where ALL ingredients (by name) exist in the pantry.
-    Matching is case-insensitive substring: pantry 'lait' matches ingredient 'Lait entier'.
+    Return recipes where ALL ingredients (by name) exist in the user's pantry.
     """
-    pantry_names = [r["name"].lower() for r in list_pantry()]
+    # On charge uniquement le garde-manger de l'utilisateur connecté !
+    pantry_names = [r["name"].lower() for r in list_pantry(user_id)]
     if not pantry_names:
         return []
 
@@ -508,7 +547,6 @@ def get_cookable_recipes() -> list[dict]:
         recipe = get_recipe(r["id"])
         if not recipe or not recipe.ingredients:
             continue
-        # Check if every ingredient has a match in pantry
         missing = []
         for ing in recipe.ingredients:
             ing_name = ing.name.lower()
@@ -523,7 +561,7 @@ def get_cookable_recipes() -> list[dict]:
 
 # ── Shopping List ─────────────────────────────────────────────────────────────
 
-def get_week_shopping_list(start_date: str) -> dict:
+def get_week_shopping_list(user_id: int, start_date: str) -> dict:
     """
     Aggregate all ingredients from recipes planned in the 7 days starting start_date.
     Returns: {
@@ -541,13 +579,14 @@ def get_week_shopping_list(start_date: str) -> dict:
         return re.sub(r"\s+", " ", s).strip()
 
     with get_connection() as conn:
+        # 👇 Ajout du filtre mp.user_id = ? dans la requête !
         rows = conn.execute("""
             SELECT mp.plan_date, mp.meal_type, r.id AS recipe_id, r.name AS recipe_name
             FROM meal_plan mp
             JOIN recipes r ON r.id=mp.recipe_id
-            WHERE mp.plan_date >= ? AND mp.plan_date < date(?, '+7 days')
+            WHERE mp.user_id = ? AND mp.plan_date >= ? AND mp.plan_date < date(?, '+7 days')
             ORDER BY mp.plan_date, mp.meal_type
-        """, (start_date, start_date)).fetchall()
+        """, (user_id, start_date, start_date)).fetchall()
 
     days = [dict(r) for r in rows]
     recipe_ids_seen = set()
@@ -586,3 +625,81 @@ def get_week_shopping_list(start_date: str) -> dict:
         })
 
     return {"days": days, "items": items, "start_date": start_date}
+    
+    # ── Dashboard Semaine ─────────────────────────────────────────────────────────
+
+def get_week_dashboard(user_id: int, start_date: str) -> dict:
+    """Récupère tous les repas et leurs macros pour 7 jours consécutifs pour un utilisateur précis."""
+    from datetime import datetime, timedelta
+    
+    with get_connection() as conn:
+        rows = conn.execute("""
+            SELECT 
+                mp.plan_date, mp.meal_type, mp.id AS plan_id, mp.is_logged,
+                r.id AS recipe_id, r.name AS recipe_name, r.servings,
+                ROUND(SUM(i.kcal), 0) AS total_kcal,
+                ROUND(SUM(i.protein_g), 1) AS total_protein_g,
+                ROUND(SUM(i.carbs_g), 1) AS total_carbs_g,
+                ROUND(SUM(i.fat_g), 1) AS total_fat_g,
+                ROUND(SUM(i.fiber_g), 1) AS total_fiber_g,
+                ROUND(SUM(i.iron_mg), 1) AS total_iron_mg
+            FROM meal_plan mp
+            JOIN recipes r ON r.id = mp.recipe_id
+            LEFT JOIN ingredients i ON i.recipe_id = r.id
+            WHERE mp.user_id = ? AND mp.plan_date >= ? AND mp.plan_date < date(?, '+7 days')
+            GROUP BY mp.id
+        """, (user_id, start_date, start_date)).fetchall()
+
+    start = datetime.strptime(start_date, "%Y-%m-%d").date()
+    
+    # 1. On prépare un dictionnaire vide pour les 7 jours de la semaine
+    week_plan = {}
+    for i in range(7):
+        d_str = (start + timedelta(days=i)).isoformat()
+        week_plan[d_str] = {
+            "meals": {t: None for t in MEAL_TYPES},
+            "daily_totals": {
+                "kcal": 0.0, "protein_g": 0.0, "carbs_g": 0.0, 
+                "fat_g": 0.0, "fiber_g": 0.0, "iron_mg": 0.0
+            }
+        }
+
+    # 2. On remplit les cases avec les repas trouvés dans la base de données
+    for r in rows:
+        d_str = r["plan_date"]
+        if d_str in week_plan:
+            meal = dict(r)
+            week_plan[d_str]["meals"][meal["meal_type"]] = meal
+            
+            # On additionne au total de la journée
+            if meal["total_kcal"]: week_plan[d_str]["daily_totals"]["kcal"] += meal["total_kcal"]
+            if meal["total_protein_g"]: week_plan[d_str]["daily_totals"]["protein_g"] += meal["total_protein_g"]
+            if meal["total_carbs_g"]: week_plan[d_str]["daily_totals"]["carbs_g"] += meal["total_carbs_g"]
+            if meal["total_fat_g"]: week_plan[d_str]["daily_totals"]["fat_g"] += meal["total_fat_g"]
+            if meal["total_fiber_g"]: week_plan[d_str]["daily_totals"]["fiber_g"] += meal["total_fiber_g"]
+            if meal["total_iron_mg"]: week_plan[d_str]["daily_totals"]["iron_mg"] += meal["total_iron_mg"]
+            
+    return week_plan
+
+# ── Authentification & Sécurité ───────────────────────────────────────────────
+
+def get_user_by_username(username: str):
+    from models import User
+    with get_connection() as conn:
+        row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+        if row:
+            return User(id=row["id"], username=row["username"], password_hash=row["password_hash"])
+        return None
+
+def get_user_by_id(user_id: int):
+    from models import User
+    with get_connection() as conn:
+        row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        if row:
+            return User(id=row["id"], username=row["username"], password_hash=row["password_hash"])
+        return None
+
+def create_user(username: str, password_hash: str) -> int:
+    with get_connection() as conn:
+        cur = conn.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)", (username, password_hash))
+        return cur.lastrowid

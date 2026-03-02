@@ -5,6 +5,7 @@ models.py — Dataclasses for all entities.
 from dataclasses import dataclass, field
 from typing import Optional
 from db import NUTRIENT_FIELDS, NUTRIENT_LABELS, RDI, MACRO_FIELDS
+from flask_login import UserMixin
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -164,6 +165,16 @@ class Recipe:
         else:             grade, bg, fg = "E", "#c62828", "#fff"
 
         return {"grade": grade, "score": score, "color": bg, "text_color": fg}
+    
+
+@dataclass
+class User(UserMixin):
+    id: int
+    username: str
+    password_hash: str
+
+    def get_id(self):
+        return str(self.id)
 
 
 # ── User Profile ──────────────────────────────────────────────────────────────
@@ -189,58 +200,86 @@ GOAL_LABELS = {
 }
 GOAL_MODIFIERS = {"maintain": 1.0, "cut": 0.80, "bulk": 1.15}
 
-
 @dataclass
 class UserProfile:
     id: int = 1
     name: str = ""
-    weight_kg: Optional[float] = None
-    height_cm: Optional[float] = None
-    age: Optional[int] = None
-    sex: str = "M"  # 'M' or 'F'
-    activity_level: str = "moderate"
+    weight_kg: float = 0.0
+    height_cm: float = 0.0
+    age: int = 0
+    sex: str = "M"
+    activity_level: str = "sedentary"
     goal: str = "maintain"
-    # Manual overrides (None = use calculated)
-    goal_kcal: Optional[float] = None
-    goal_protein_g: Optional[float] = None
-    goal_carbs_g: Optional[float] = None
-    goal_fat_g: Optional[float] = None
-    meals_per_day: int = 3  # 3 or 4 — drives meal plan slots
+    meals_per_day: int = 3
+    # ── Nouvelles données expertes ──
+    current_bf_pct: Optional[float] = None
+    goal_weight_kg: Optional[float] = None
+    goal_bf_pct: Optional[float] = None
 
-    def bmr(self) -> Optional[float]:
-        """Mifflin-St Jeor BMR."""
-        if not all([self.weight_kg, self.height_cm, self.age]):
+    def get_smart_strategy(self) -> Optional[dict]:
+        """Algorithme de Katch-McArdle pour assigner une stratégie scientifique."""
+        if not self.weight_kg or not self.current_bf_pct or not self.goal_bf_pct:
             return None
-        base = 10 * self.weight_kg + 6.25 * self.height_cm - 5 * self.age
-        return base + 5 if self.sex == "M" else base - 161
-
-    def tdee(self) -> Optional[float]:
-        bmr = self.bmr()
-        if bmr is None:
-            return None
-        mult = ACTIVITY_MULTIPLIERS.get(self.activity_level, 1.55)
-        return round(bmr * mult, 0)
-
-    def suggested_goal_kcal(self) -> Optional[float]:
-        tdee = self.tdee()
-        if tdee is None:
-            return None
-        return round(tdee * GOAL_MODIFIERS.get(self.goal, 1.0), 0)
-
-    def effective_goals(self) -> dict:
-        """Return active goals — manual override or calculated defaults."""
-        kcal = self.goal_kcal or self.suggested_goal_kcal() or 2000
-        # Default macro split: 30% protein, 40% carbs, 30% fat
-        protein = self.goal_protein_g or round(kcal * 0.30 / 4, 0)
-        carbs   = self.goal_carbs_g   or round(kcal * 0.40 / 4, 0)
-        fat     = self.goal_fat_g     or round(kcal * 0.30 / 9, 0)
+            
+        # 1. Masse Maigre (LBM) et Métabolisme de base (BMR)
+        lbm = self.weight_kg * (1 - (self.current_bf_pct / 100))
+        bmr = 370 + (21.6 * lbm)
+        
+        multipliers = {
+            "sedentary": 1.2, "light": 1.375, "moderate": 1.55,
+            "active": 1.725, "very_active": 1.9
+        }
+        tdee = bmr * multipliers.get(self.activity_level, 1.2)
+        
+        # 2. Choix de la stratégie selon l'écart de gras
+        diff_bf = self.current_bf_pct - self.goal_bf_pct
+        
+        if diff_bf > 3:
+            strategy = "Sèche (Cut)"
+            desc = "Déficit modéré. Protéines hautes pour préserver le muscle."
+            kcal = tdee - 400
+            protein = lbm * 2.4  # Très haut pour protéger la masse
+            fat = self.weight_kg * 0.8
+        elif diff_bf < -2:
+            strategy = "Prise de Masse Propre"
+            desc = "Léger surplus pour construire du muscle sans faire de gras."
+            kcal = tdee + 250
+            protein = lbm * 2.0
+            fat = self.weight_kg * 1.0
+        elif diff_bf > 0:
+            strategy = "Recomposition Corporelle"
+            desc = "Perte de gras et prise de muscle simultanées (Mini déficit)."
+            kcal = tdee - 150
+            protein = lbm * 2.2
+            fat = self.weight_kg * 0.9
+        else:
+            strategy = "Maintien Optimal"
+            desc = "Équilibre parfait pour la santé hormonale et la performance."
+            kcal = tdee
+            protein = lbm * 1.8
+            fat = self.weight_kg * 1.0
+            
+        carbs = (kcal - (protein * 4) - (fat * 9)) / 4
+        
         return {
-            "kcal": kcal,
-            "protein_g": protein,
-            "carbs_g": carbs,
-            "fat_g": fat,
+            "strategy": strategy,
+            "description": desc,
+            "lbm": round(lbm, 1),
+            "tdee": round(tdee),
+            "kcal": round(kcal),
+            "protein_g": round(protein),
+            "fat_g": round(fat),
+            "carbs_g": max(0, round(carbs))
         }
 
+    def effective_goals(self) -> dict:
+        """Surcharge l'ancien système si la stratégie experte est dispo."""
+        smart = self.get_smart_strategy()
+        if smart:
+            return smart  # Retourne les macros intelligentes
+        
+        # Fallback sur ton ancien système si l'utilisateur n'a pas mis son BF%
+        return {"kcal": 2000, "protein_g": 100, "carbs_g": 200, "fat_g": 60}
 
 # ── Food Log ──────────────────────────────────────────────────────────────────
 

@@ -85,8 +85,24 @@
         <input class="form-control form-control-sm ing-qty-input" name="ing_qty"
                placeholder="200" type="number" min="0" step="any"
                value="{{ ing.quantity if ing else '' }}">
-        <input class="form-control form-control-sm ing-unit-input" name="ing_unit"
-               placeholder="g, ml, cup..." value="{{ ing.unit if ing else '' }}">
+        <select class="form-select form-select-sm ing-unit-input" name="ing_unit" style="min-width: 80px;">
+          <optgroup label="Poids">
+            <option value="g" {{ 'selected' if ing and ing.unit == 'g' else '' }}>g</option>
+            <option value="kg" {{ 'selected' if ing and ing.unit == 'kg' else '' }}>kg</option>
+          </optgroup>
+          <optgroup label="Volume">
+            <option value="ml" {{ 'selected' if ing and ing.unit == 'ml' else '' }}>ml</option>
+            <option value="cl" {{ 'selected' if ing and ing.unit == 'cl' else '' }}>cl</option>
+            <option value="cas" {{ 'selected' if ing and ing.unit == 'cas' else '' }}>c.à.s</option>
+            <option value="cac" {{ 'selected' if ing and ing.unit == 'cac' else '' }}>c.à.c</option>
+          </optgroup>
+          <optgroup label="Unités">
+            <option value="pièce" {{ 'selected' if ing and ing.unit == 'pièce' else '' }}>pièce</option>
+            <option value="gousse" {{ 'selected' if ing and ing.unit == 'gousse' else '' }}>gousse (ail)</option>
+            <option value="oignon" {{ 'selected' if ing and ing.unit == 'oignon' else '' }}>oignon</option>
+            <option value="pincée" {{ 'selected' if ing and ing.unit == 'pincée' else '' }}>pincée</option>
+          </optgroup>
+        </select>
         <button type="button" class="btn-nutr-toggle {{ 'has-data' if ing and ing.has_nutrition }}"
                 title="Valeurs nutritionnelles">
           <i class="bi bi-bar-chart-line"></i>
@@ -476,7 +492,24 @@ function buildRow() {
         <button type="button" class="src-btn src-off" data-source="off">🏷️ Marque</button>
       </div>
       <input class="form-control form-control-sm ing-qty-input" name="ing_qty" placeholder="100" type="number" min="0" step="any">
-      <input class="form-control form-control-sm ing-unit-input" name="ing_unit" placeholder="g, ml, cas...">
+      <select class="form-select form-select-sm ing-unit-input" name="ing_unit" style="min-width: 80px;">
+        <optgroup label="Poids">
+          <option value="g" selected>g</option>
+          <option value="kg">kg</option>
+        </optgroup>
+        <optgroup label="Volume">
+          <option value="ml">ml</option>
+          <option value="cl">cl</option>
+          <option value="cas">c.à.s</option>
+          <option value="cac">c.à.c</option>
+        </optgroup>
+        <optgroup label="Unités">
+          <option value="pièce">pièce</option>
+          <option value="gousse">gousse (ail)</option>
+          <option value="oignon">oignon</option>
+          <option value="pincée">pincée</option>
+        </optgroup>
+      </select>
       <button type="button" class="btn-nutr-toggle" title="Nutrition"><i class="bi bi-bar-chart-line"></i></button>
       <button type="button" class="btn-remove-ing"><i class="bi bi-x-lg"></i></button>
     </div>

@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Planning Semaine{% endblock %}
+
+{% block content %}
+<style>
+  /* Design spécifique pour le style "Kanban" de la semaine */
+  .kanban-container {
+    display: flex;
+    overflow-x: auto;
+    gap: 1rem;
+    padding-bottom: 1rem;
+    align-items: flex-start;
+  }
+  .kanban-col {
+    flex: 0 0 300px; /* Largeur fixe pour chaque jour */
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .day-header {
+    background: white;
+    padding: 1rem;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    border-top: 4px solid #e2e2ea;
+  }
+  .day-header.is-today {
+    border-top: 4px solid var(--accent);
+    background: var(--accent-soft);
+  }
+  .meal-card {
+    background: white;
+    padding: 0.75rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    border: 1px solid #f0f0f5;
+    transition: transform 0.1s;
+  }
+  .meal-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+  }
+  .meal-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #2c3e50;
+    margin-bottom: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .meal-type-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #a0a0b0;
+    margin-bottom: 0.2rem;
+  }
+  .macro-badge {
+    font-size: 0.75rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    background: #f8f9fa;
+    color: #6c757d;
+  }
+  .progress-thin {
+    height: 6px;
+    border-radius: 3px;
+    background-color: #e9ecef;
+    margin-top: 0.5rem;
+  }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div class="d-flex align-items-center gap-3">
+    <a href="{{ url_for('week_view', start=prev_week) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-left"></i></a>
+    <h1 class="mb-0" style="font-size: 1.5rem; font-weight: 800;">
+      <i class="bi bi-calendar3-week text-accent"></i> {{ week_label }}
+    </h1>
+    <a href="{{ url_for('week_view', start=next_week) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-right"></i></a>
+  </div>
+  
+  <a href="{{ url_for('shopping_list', start=days[0].date) }}" class="btn btn-accent d-flex align-items-center gap-2 shadow-sm">
+    <i class="bi bi-cart3"></i> Liste de courses
+  </a>
+</div>
+
+<div class="kanban-container">
+  {% for day in days %}
+  {% set dt = day.data.daily_totals %}
+  {% set goal_k = goals.kcal or 2000 %}
+  {% set pct_k = [(dt.kcal / goal_k * 100), 100]|min %}
+  
+  <div class="kanban-col">
+    <div class="day-header {{ 'is-today' if day.is_today else '' }}">
+      <div class="d-flex justify-content-between align-items-center mb-1">
+        <h5 class="mb-0 fw-bold">{{ day.label }}</h5>
+        <a href="{{ url_for('dashboard', date_str=day.date) }}" class="text-muted" title="Voir la journée"><i class="bi bi-box-arrow-in-up-right"></i></a>
+      </div>
+      
+      <div class="d-flex justify-content-between text-muted mt-2" style="font-size: 0.8rem;">
+        <span><strong>{{ dt.kcal|int }}</strong> / {{ goal_k|int }} kcal</span>
+      </div>
+      <div class="progress progress-thin">
+        <div class="progress-bar {{ 'bg-danger' if pct_k > 100 else 'bg-success' }}" style="width: {{ pct_k }}%"></div>
+      </div>
+      
+      <div class="d-flex gap-2 mt-2">
+        <span class="badge bg-light text-dark border"><i class="bi bi-droplet-fill text-success"></i> Fibres: {{ dt.fiber_g|int }}g</span>
+        <span class="badge bg-light text-dark border"><i class="bi bi-lightning-fill text-danger"></i> Fer: {{ dt.iron_mg|int }}mg</span>
+      </div>
+    </div>
+
+    {% for type_key, type_name in MEAL_TYPES.items() %}
+      {% set meal = day.data.meals[type_key] %}
+      {% if meal %}
+      <a href="{{ url_for('view_recipe', recipe_id=meal.recipe_id) }}" class="meal-card text-decoration-none">
+        <div class="meal-type-label">{{ type_name }}</div>
+        <div class="meal-title">{{ meal.recipe_name }}</div>
+        <div class="d-flex gap-1 mt-2 flex-wrap">
+          <span class="macro-badge fw-bold text-dark"><i class="bi bi-fire text-danger"></i> {{ meal.total_kcal|int if meal.total_kcal else 0 }}</span>
+          <span class="macro-badge">P:{{ meal.total_protein_g|int if meal.total_protein_g else 0 }}</span>
+          <span class="macro-badge">G:{{ meal.total_carbs_g|int if meal.total_carbs_g else 0 }}</span>
+          <span class="macro-badge">L:{{ meal.total_fat_g|int if meal.total_fat_g else 0 }}</span>
+        </div>
+      </a>
+      {% else %}
+      <a href="{{ url_for('dashboard', date_str=day.date) }}" class="meal-card text-center text-muted text-decoration-none" style="border: 1px dashed #ced4da; background: transparent;">
+        <i class="bi bi-plus"></i> <span style="font-size: 0.8rem;">{{ type_name }}</span>
+      </a>
+      {% endif %}
+    {% endfor %}
+    
+  </div>
+  {% endfor %}
+</div>
+
+{% endblock %}
