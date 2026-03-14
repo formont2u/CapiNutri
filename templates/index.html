@@ -12,17 +12,17 @@
     <div class="subtitle">{{ recipes|length }} recette{{ 's' if recipes|length != 1 }}</div>
   </div>
   <div class="d-flex gap-3 align-items-center">
-    <form method="get" action="{{ url_for('index') }}" class="d-flex gap-2 align-items-center">
+    <form method="get" action="{{ url_for('recipes.index') }}" class="d-flex gap-2 align-items-center">
       {% if active_category %}<input type="hidden" name="category" value="{{ active_category }}">{% endif %}
       <div class="search-wrap">
         <i class="bi bi-search"></i>
         <input class="form-control" name="search" placeholder="Rechercher…" value="{{ search }}" style="width:220px">
       </div>
       {% if search %}
-        <a href="{{ url_for('index', category=active_category) }}" class="btn btn-outline-secondary btn-sm">✕</a>
+        <a href="{{ url_for('recipes.index', category=active_category) }}" class="btn btn-outline-secondary btn-sm">✕</a>
       {% endif %}
     </form>
-    <a href="{{ url_for('new_recipe') }}" class="btn btn-accent d-flex align-items-center gap-2">
+    <a href="{{ url_for('recipes.new_recipe') }}" class="btn btn-accent d-flex align-items-center gap-2">
       <i class="bi bi-plus-lg"></i> Nouvelle recette
     </a>
   </div>
@@ -32,7 +32,7 @@
 <div class="row g-3">
   {% for r in recipes %}
   <div class="col-md-6 col-lg-4">
-    <a href="{{ url_for('view_recipe', recipe_id=r.id) }}" class="recipe-card">
+    <a href="{{ url_for('recipes.view_recipe', recipe_id=r.id) }}" class="recipe-card">
       <div class="card-category"><i class="bi bi-tag"></i> {{ r.category or 'Sans catégorie' }}</div>
       <h3>{{ r.name }}</h3>
       <div class="meta">
@@ -55,10 +55,10 @@
   <i class="bi bi-journal-text"></i>
   {% if search %}
     <p>Aucune recette pour <strong>"{{ search }}"</strong>.</p>
-    <a href="{{ url_for('index') }}" class="btn btn-accent">Effacer la recherche</a>
+    <a href="{{ url_for('recipes.index') }}" class="btn btn-accent">Effacer la recherche</a>
   {% else %}
     <p>Aucune recette pour l'instant. Ajoutez la première !</p>
-    <a href="{{ url_for('new_recipe') }}" class="btn btn-accent">
+    <a href="{{ url_for('recipes.new_recipe') }}" class="btn btn-accent">
       <i class="bi bi-plus-lg"></i> Ajouter une recette
     </a>
   {% endif %}

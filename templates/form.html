@@ -3,7 +3,7 @@
 
 {% block content %}
 <div class="d-flex align-items-center gap-3 mb-4">
-  <a href="{{ url_for('view_recipe', recipe_id=recipe.id) if recipe else url_for('index') }}"
+  <a href="{{ url_for('recipes.view_recipe', recipe_id=recipe.id) if recipe else url_for('recipes.index') }}"
      class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
     <i class="bi bi-arrow-left"></i> Retour
   </a>
@@ -170,7 +170,7 @@
   <button type="submit" class="btn btn-accent px-4 py-2 d-flex align-items-center gap-2">
     <i class="bi bi-floppy"></i> {{ 'Sauvegarder' if recipe else 'Ajouter la recette' }}
   </button>
-  <a href="{{ url_for('view_recipe', recipe_id=recipe.id) if recipe else url_for('index') }}"
+  <a href="{{ url_for('recipes.view_recipe', recipe_id=recipe.id) if recipe else url_for('recipes.index') }}"
      class="btn btn-outline-secondary">Annuler</a>
 </div>
 </form>

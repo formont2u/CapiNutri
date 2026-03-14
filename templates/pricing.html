@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Comparateur de Prix{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div>
+    <h1><i class="bi bi-tag-fill text-accent"></i> Base de données des Prix</h1>
+    <div class="subtitle">Enregistrez les prix de vos supermarchés pour estimer votre liste de courses.</div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="form-panel">
+      <div class="section-title"><i class="bi bi-plus-circle"></i> Ajouter un Prix</div>
+      <form method="post">
+        <input type="hidden" name="action" value="add_price">
+        
+        <div class="mb-3">
+          <label class="form-label-sm">Supermarché</label>
+          <select class="form-select form-select-sm" name="shop_id" required>
+            {% for shop in shops %}
+              <option value="{{ shop.id }}">{{ shop.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        
+        <div class="mb-3">
+          <label class="form-label-sm">Ingrédient (ex: Viande hachée 14%)</label>
+          <input class="form-control form-control-sm" name="ingredient_name" required>
+        </div>
+        
+        <div class="row g-2 mb-3">
+          <div class="col-6">
+            <label class="form-label-sm">Prix (NOK)</label>
+            <input class="form-control form-control-sm" type="number" step="0.1" name="price" required placeholder="ex: 129">
+          </div>
+          <div class="col-6">
+            <label class="form-label-sm">Unité de réf.</label>
+            <select class="form-select form-select-sm" name="unit" required>
+              <option value="kg">par Kg</option>
+              <option value="l">par Litre</option>
+              <option value="pièce">par Pièce</option>
+            </select>
+          </div>
+        </div>
+        
+        <button class="btn btn-accent btn-sm w-100" type="submit"><i class="bi bi-check-lg"></i> Enregistrer le prix</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="form-panel">
+      <div class="section-title"><i class="bi bi-list-ul"></i> Prix enregistrés</div>
+      <table class="lib-table mt-2">
+        <thead>
+          <tr>
+            <th>Ingrédient</th>
+            <th>Magasin</th>
+            <th style="text-align:right">Prix</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in prices %}
+          <tr>
+            <td class="fw-bold">{{ p.ingredient_raw }}</td>
+            <td><span class="badge bg-light text-dark border">{{ p.shop_name }}</span></td>
+            <td class="text-end text-danger fw-bold">{{ p.price }} NOK <span class="text-muted fw-normal">/ {{ p.ref_unit }}</span></td>
+            <td class="text-end">
+              <form method="post" onsubmit="return confirm('Supprimer ce prix ?')">
+                <input type="hidden" name="action" value="delete_price">
+                <input type="hidden" name="price_id" value="{{ p.id }}">
+                <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

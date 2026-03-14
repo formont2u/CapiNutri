@@ -3,7 +3,7 @@
 
 {% block content %}
 <div class="d-flex align-items-center gap-3 mb-4">
-  <a href="{{ url_for('library') }}" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
+  <a href="{{ url_for('library.library') }}" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
     <i class="bi bi-arrow-left"></i> Bibliothèque
   </a>
   <h1 class="mb-0" style="font-size:1.4rem;font-weight:800">
@@ -15,7 +15,7 @@
   </h1>
 </div>
 
-<form method="post" action="{{ url_for('library_add') if is_new else url_for('library_edit', entry_id=entry.id) }}">
+<form method="post" action="{{ url_for('library.library_add') if is_new else url_for('library.library_edit', entry_id=entry.id) }}">
 <div class="form-panel">
 
   <div class="row g-3 mb-4">
@@ -81,9 +81,9 @@
   <button type="submit" class="btn btn-accent px-4 py-2 d-flex align-items-center gap-2">
     <i class="bi bi-floppy"></i> {{ 'Ajouter à la bibliothèque' if is_new else 'Sauvegarder' }}
   </button>
-  <a href="{{ url_for('library') }}" class="btn btn-outline-secondary">Annuler</a>
+  <a href="{{ url_for('library.library') }}" class="btn btn-outline-secondary">Annuler</a>
   {% if not is_new %}
-  <form method="post" action="{{ url_for('library_delete', entry_id=entry.id) }}"
+  <form method="post" action="{{ url_for('library.library_delete', entry_id=entry.id) }}"
         class="ms-auto" onsubmit="return confirm('Supprimer définitivement ?')">
     <button class="btn btn-outline-danger d-flex align-items-center gap-1">
       <i class="bi bi-trash"></i> Supprimer

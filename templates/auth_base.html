@@ -61,7 +61,19 @@
   </div>
   
   <div class="container">
-    {% include "flash_messages.html" ignore missing %}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mb-4">
+          {% for category, message in messages %}
+            {% set bs_class = 'success' if category == 'success' else 'danger' if category in ['error', 'danger'] else 'info' %}
+            <div class="alert alert-{{ bs_class }} d-flex align-items-center gap-2 border-0 shadow-sm" style="border-radius: 10px;">
+              <i class="bi bi-{{ 'check-circle' if bs_class == 'success' else 'exclamation-triangle' if bs_class == 'danger' else 'info-circle' }}"></i>
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
     {% block content %}{% endblock %}
   </div>
 

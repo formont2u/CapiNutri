@@ -5,7 +5,7 @@
 
 {# ── Date navigation ──────────────────────────────────────────────────────── #}
 <div class="plan-header">
-  <a href="{{ url_for('meal_plan', date_str=prev_date) }}" class="btn btn-sm btn-outline-secondary">
+  <a href="{{ url_for('planning.meal_plan', date_str=prev_date) }}" class="btn btn-sm btn-outline-secondary">
     <i class="bi bi-chevron-left"></i>
   </a>
   <div class="plan-date-display">
@@ -14,10 +14,10 @@
     <span class="today-chip"><i class="bi bi-circle-fill"></i> Aujourd'hui</span>
     {% endif %}
   </div>
-  <a href="{{ url_for('meal_plan', date_str=next_date) }}" class="btn btn-sm btn-outline-secondary">
+  <a href="{{ url_for('planning.meal_plan', date_str=next_date) }}" class="btn btn-sm btn-outline-secondary">
     <i class="bi bi-chevron-right"></i>
   </a>
-  <a href="{{ url_for('meal_plan') }}" class="btn btn-sm btn-outline-secondary ms-2"
+  <a href="{{ url_for('planning.meal_plan') }}" class="btn btn-sm btn-outline-secondary ms-2"
      title="Aller à aujourd'hui">
     <i class="bi bi-calendar-check"></i>
   </a>
@@ -26,7 +26,7 @@
 <div class="plan-info">
   <i class="bi bi-info-circle"></i>
   {{ meals_per_day }} repas planifiés ·
-  <a href="{{ url_for('profile') }}">Modifier dans le profil</a>
+  <a href="{{ url_for('tracking.profile') }}">Modifier dans le profil</a>
 </div>
 
 {# ── Meal slots ───────────────────────────────────────────────────────────── #}
@@ -51,7 +51,7 @@
   {% if entry %}
   <div class="plan-recipe" id="recipe-{{ slot }}">
     <div class="plan-recipe-name">
-      <a href="{{ url_for('view_recipe', recipe_id=entry.recipe_id) }}">{{ entry.recipe_name }}</a>
+      <a href="{{ url_for('recipes.view_recipe', recipe_id=entry.recipe_id) }}">{{ entry.recipe_name }}</a>
     </div>
     {% if entry.total_kcal %}
     <div class="plan-recipe-kcal">

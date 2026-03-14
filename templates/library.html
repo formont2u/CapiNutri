@@ -13,9 +13,9 @@
         <i class="bi bi-search"></i>
         <input class="form-control" name="q" placeholder="Rechercher…" value="{{ search }}" style="width:200px">
       </div>
-      {% if search %}<a href="{{ url_for('library') }}" class="btn btn-outline-secondary btn-sm">✕</a>{% endif %}
+      {% if search %}<a href="{{ url_for('library.library') }}" class="btn btn-outline-secondary btn-sm">✕</a>{% endif %}
     </form>
-    <a href="{{ url_for('library_add') }}" class="btn btn-accent d-flex align-items-center gap-1">
+    <a href="{{ url_for('library.library_add') }}" class="btn btn-accent d-flex align-items-center gap-1">
       <i class="bi bi-plus-lg"></i> Ajouter
     </a>
   </div>
@@ -52,11 +52,11 @@
         <span class="lib-uses-badge">{{ e.used_count }}</span>
       </td>
       <td class="lib-actions">
-        <a href="{{ url_for('library_edit', entry_id=e.id) }}"
+        <a href="{{ url_for('library.library_edit', entry_id=e.id) }}"
            class="btn btn-sm btn-outline-secondary" title="Modifier">
           <i class="bi bi-pencil"></i>
         </a>
-        <form method="post" action="{{ url_for('library_delete', entry_id=e.id) }}"
+        <form method="post" action="{{ url_for('library.library_delete', entry_id=e.id) }}"
               style="display:inline" onsubmit="return confirm('Supprimer « {{ e.name }} » ?')">
           <button class="btn btn-sm btn-outline-danger" title="Supprimer">
             <i class="bi bi-trash"></i>
@@ -74,13 +74,13 @@
   <i class="bi bi-bookmark-x"></i>
   {% if search %}
     <p>Aucun résultat pour <strong>"{{ search }}"</strong>.</p>
-    <a href="{{ url_for('library') }}" class="btn btn-accent">Effacer</a>
+    <a href="{{ url_for('library.library') }}" class="btn btn-accent">Effacer</a>
   {% else %}
     <p>La bibliothèque est vide pour l'instant.</p>
     <p style="color:#aaa;font-size:.88rem">
       Cherche un ingrédient depuis le formulaire de recette — il sera automatiquement sauvegardé ici quand tu le sélectionnes.
     </p>
-    <a href="{{ url_for('new_recipe') }}" class="btn btn-accent">Créer une recette</a>
+    <a href="{{ url_for('recipes.new_recipe') }}" class="btn btn-accent">Créer une recette</a>
   {% endif %}
 </div>
 {% endif %}

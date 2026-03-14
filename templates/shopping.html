@@ -3,7 +3,7 @@
 
 {% block content %}
 <div class="plan-header">
-  <a href="{{ url_for('shopping_list', start=prev_week) }}" class="btn btn-sm btn-outline-secondary">
+  <a href="{{ url_for('planning.shopping_list', start=prev_week) }}" class="btn btn-sm btn-outline-secondary">
     <i class="bi bi-chevron-left"></i>
   </a>
   <div class="plan-date-display">
@@ -12,7 +12,15 @@
       Liste de courses · {{ week_label }}
     </h1>
   </div>
-  <a href="{{ url_for('shopping_list', start=next_week) }}" class="btn btn-sm btn-outline-secondary">
+
+  <div class="d-flex align-items-center gap-3">
+    {% if result.total_estimated_cost > 0 %}
+      <div class="badge bg-white text-dark border shadow-sm p-2 fs-6">
+        Est. Total: <span class="text-danger fw-bold fs-5">{{ result.total_estimated_cost|int }} NOK</span>
+      </div>
+    {% endif %}
+
+  <a href="{{ url_for('planning.shopping_list', start=next_week) }}" class="btn btn-sm btn-outline-secondary">
     <i class="bi bi-chevron-right"></i>
   </a>
   <button class="btn btn-sm btn-outline-secondary ms-2" onclick="window.print()" title="Imprimer">
@@ -35,13 +43,16 @@
       {% set day_names = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'] %}
       {% set month_names = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'] %}
       <div class="shopping-date-header">
-        {{ day_names[d.plan_date | strftime_dow] if d.plan_date | strftime_dow is defined else '' }}
-        {{ parts[2]|int }} {{ month_names[parts[1]|int - 1] }}
+        <span class="text-muted small">
+          {% if d.plan_date %}
+          {{ d.plan_date[8:10] }}/{{ d.plan_date[5:7] }}
+          {% endif %}
+        </span>
       </div>
       {% endif %}
       <div class="shopping-meal-row">
         <span class="shopping-meal-type">{{ d.meal_type }}</span>
-        <a href="{{ url_for('view_recipe', recipe_id=d.recipe_id) }}" class="shopping-recipe-link">
+        <a href="{{ url_for('recipes.view_recipe', recipe_id=d.recipe_id) }}" class="shopping-recipe-link">
           {{ d.recipe_name }}
         </a>
       </div>
@@ -50,7 +61,7 @@
   </div>
 
   {# ── Right: shopping list ── #}
-  {# ── Right: shopping list intelligente ── #}
+ 
   <div class="col-lg-8">
     <div class="form-panel mb-4">
       <div class="section-title d-flex justify-content-between align-items-center">
@@ -62,12 +73,14 @@
 
       {% if result.items %}
       <ul class="shopping-checklist" id="shoppingList">
-        {% for item in result.items %}
+        {% for item in result['items'] %}
           {% if item.to_buy %}
           <li class="shopping-item" id="si-{{ loop.index }}">
             <label class="shopping-label">
               <input type="checkbox" class="shopping-check"
-                     onchange="this.closest('.shopping-item').classList.toggle('checked', this.checked)">
+                  data-name="{{ item.name }}"
+                  data-purchases='{{ item.to_buy | tojson }}'
+                  onchange="this.closest('.shopping-item').classList.toggle('checked', this.checked)">
               <span class="shopping-item-name">{{ item.name }}</span>
               <span class="shopping-item-qty">
                 {% for unit, total in item.to_buy.items() %}
@@ -76,12 +89,19 @@
                   </span>
                 {% endfor %}
                 
+                {% if item.estimated_cost > 0 %}
+                  <span class="badge bg-light text-dark border ms-2">
+                    ~ {{ item.estimated_cost|int }} NOK <span class="text-muted fw-normal" style="font-size: 0.65rem;">chez {{ item.cheapest_shop }}</span>
+                  </span>
+                {% endif %}
+
                 {% if item.in_stock %}
                   <span class="badge bg-success ms-2 p-1" style="font-size: 0.65rem;" title="Déduit du stock !">
                     <i class="bi bi-box2-heart"></i> Stock déduit
                   </span>
                 {% endif %}
               </span>
+
             </label>
             {% if item.entries|length > 1 %}
             <div class="shopping-recipes">
@@ -94,6 +114,9 @@
           {% endif %}
         {% endfor %}
       </ul>
+      <button id="finishShoppingBtn" class="btn btn-accent mt-4 w-100 shadow-sm" style="padding: 12px; font-weight: 800; font-size: 1.1rem;">
+        <i class="bi bi-box-arrow-in-down"></i> Transférer les articles cochés dans mon Garde-Manger
+      </button>
       {% endif %}
     </div>
 
@@ -101,7 +124,7 @@
       <div class="section-title text-success"><i class="bi bi-box-seam"></i> Déjà dans vos placards</div>
       <ul class="list-group list-group-flush bg-transparent" style="font-size: 0.85rem;">
         {% set has_stock = false %}
-        {% for item in result.items %}
+        {% for item in result['items'] %}
           {% if item.in_stock and not item.to_buy %}
             {% set has_stock = true %}
             <li class="list-group-item bg-transparent px-0 d-flex justify-content-between text-muted">
@@ -130,7 +153,7 @@
 <div class="empty-state mt-4">
   <i class="bi bi-calendar-x"></i>
   <p>Aucun repas planifié pour cette semaine.</p>
-  <a href="{{ url_for('meal_plan') }}" class="btn btn-accent">Aller au planning</a>
+  <a href="{{ url_for('planning.meal_plan') }}" class="btn btn-accent">Aller au planning</a>
 </div>
 {% endif %}
 
@@ -158,6 +181,60 @@ document.querySelectorAll('.shopping-check').forEach((c, i) => {
     document.querySelectorAll('.shopping-check').forEach((ch, j) => state[j] = ch.checked);
     sessionStorage.setItem(KEY, JSON.stringify(state));
   });
+});
+
+// Fonction pour afficher une notification (empruntée à tes autres pages)
+function showToast(msg, type='info') {
+  const t = document.createElement('div');
+  t.className = `off-toast off-toast-${type}`; t.textContent = msg;
+  document.body.appendChild(t);
+  requestAnimationFrame(() => t.classList.add('show'));
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 3500);
+}
+
+// Logique du bouton "Courses terminées"
+document.getElementById('finishShoppingBtn')?.addEventListener('click', async () => {
+  const btn = document.getElementById('finishShoppingBtn');
+  const checkedBoxes = document.querySelectorAll('.shopping-check:checked');
+  
+  if (checkedBoxes.length === 0) {
+    showToast('Aucun article coché !', 'warn');
+    return;
+  }
+
+  // Animation de chargement
+  btn.disabled = true;
+  const originalText = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Transfert en cours...';
+
+  let itemsToSend = [];
+  checkedBoxes.forEach(cb => {
+    const name = cb.dataset.name;
+    const purchases = JSON.parse(cb.dataset.purchases);
+    
+    // purchases est un objet du type { "g": 500, "pièce": 2 }
+    for (const [unit, qty] of Object.entries(purchases)) {
+      itemsToSend.push({ name: name, quantity: qty, unit: unit });
+    }
+  });
+
+  try {
+    const res = await fetch('/api/shopping/to_pantry', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: itemsToSend })
+    });
+    
+    if ((await res.json()).ok) {
+      showToast('Ingrédients ajoutés au Garde-Manger !', 'success');
+      // Redirection automatique vers le garde-manger après 1.5 secondes
+      setTimeout(() => window.location.href = "{{ url_for('planning.pantry') }}", 1500);
+    }
+  } catch (e) {
+    showToast('Erreur lors du transfert', 'error');
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+  }
 });
 </script>
 {% endblock %}

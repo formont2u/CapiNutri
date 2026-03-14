@@ -1,11 +1,18 @@
 """
 crud.py — Database operations for all modules.
 """
-
+from flask import jsonify
 from db import get_connection, NUTRIENT_FIELDS
 from models import Recipe, Ingredient, UserProfile, FoodLogEntry, ExerciseEntry
 from typing import Optional
+import inspect
 
+
+def _norm(name):
+    """Normalise un nom d'ingrédient pour faciliter les comparaisons."""
+    if not name:
+        return ""
+    return name.strip().lower()
 
 # ── Categories ────────────────────────────────────────────────────────────────
 
@@ -194,36 +201,64 @@ def save_profile(p: UserProfile, user_id: int):
 
 _LOG_FIELDS = ["id","log_date","meal_type","recipe_id","label","servings"] + NUTRIENT_FIELDS
 
-def add_food_log(user_id: int, entry: FoodLogEntry) -> int:
-    fields = ["user_id", "log_date", "meal_type", "recipe_id", "label", "servings"] + NUTRIENT_FIELDS
-    vals   = [user_id, entry.log_date, entry.meal_type, entry.recipe_id, entry.label, entry.servings]
-    vals  += [getattr(entry, f, None) for f in NUTRIENT_FIELDS]
+def create_food_log(user_id, label, servings, kcal, meal_type, date_str, 
+                 protein_g=0, carbs_g=0, fat_g=0, sugars_g=0, 
+                 fiber_g=0, saturated_g=0, sodium_mg=0, recipe_id=None):
     with get_connection() as conn:
-        return conn.execute(
-            f"INSERT INTO food_log ({','.join(fields)}) VALUES ({','.join(['?']*len(fields))})",
-            vals
-        ).lastrowid
-
-def get_food_log_day(user_id: int, date_str: str) -> list[FoodLogEntry]:
-    with get_connection() as conn:
-        rows = conn.execute(
-            "SELECT * FROM food_log WHERE user_id=? AND log_date=?", 
-            (user_id, date_str)
-        ).fetchall()
+        cursor = conn.cursor()
         
+        # On déclare bien nos 14 colonnes, et on met 14 points d'interrogation
+        query = """
+            INSERT INTO food_log (
+                user_id, label, servings, kcal, meal_type, log_date, recipe_id,
+                protein_g, carbs_g, fat_g, sugars_g, fiber_g, saturated_g, sodium_mg
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        
+        # On passe exactement les 14 variables dans le même ordre
+        cursor.execute(query, (
+            user_id, label, servings, kcal, meal_type, date_str, recipe_id,
+            protein_g, carbs_g, fat_g, sugars_g, fiber_g, saturated_g, sodium_mg
+        ))
+        
+        # --- C'EST ICI QUE CA SE JOUE ---
+        new_id = cursor.lastrowid  # Récupère l'ID auto-incrémenté
+        conn.commit()
+        
+        return new_id
+def get_food_log_day(user_id, date_str):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM food_log 
+            WHERE user_id = ? AND log_date = ?
+            ORDER BY id ASC
+        """, (user_id, date_str))
+
+        rows = cursor.fetchall()
+
+        # On récupère la liste des arguments acceptés par le constructeur de FoodLogEntry
+        sig = inspect.signature(FoodLogEntry.__init__)
+        valid_keys = sig.parameters.keys()
+        
+       
         entries = []
         for r in rows:
             d = dict(r)
-            # On enlève les clés qui ne sont pas dans FoodLogEntry (comme id et user_id)
-            d.pop("id", None)
-            d.pop("user_id", None)
-            entries.append(FoodLogEntry(**d))
+            # On ne garde que les clés qui existent dans le constructeur de la classe
+            filtered_d = {k: v for k, v in d.items() if k in valid_keys}
+            entries.append(FoodLogEntry(**filtered_d))
+            
         return entries
 
 
-def delete_food_log(user_id: int, entry_id: int) -> bool:
+def delete_food_log(user_id, entry_id):
     with get_connection() as conn:
-        return conn.execute("DELETE FROM food_log WHERE id=? AND user_id=?", (entry_id, user_id)).rowcount > 0
+        cursor = conn.cursor()
+        # Sécurité : on vérifie l'user_id en plus de l'id de la ligne
+        cursor.execute("DELETE FROM food_log WHERE id = ? AND user_id = ?", (entry_id, user_id))
+        return cursor.rowcount > 0
 
 
 def get_week_summary(start_date: str) -> list[dict]:
@@ -629,31 +664,35 @@ def get_week_shopping_list(user_id: int, start_date: str) -> dict:
     # ── Dashboard Semaine ─────────────────────────────────────────────────────────
 
 def get_week_dashboard(user_id: int, start_date: str) -> dict:
-    """Récupère tous les repas et leurs macros pour 7 jours consécutifs pour un utilisateur précis."""
+    """Récupère tous les repas et leurs macros pour 7 jours consécutifs depuis le journal unique."""
     from datetime import datetime, timedelta
     
-    with get_connection() as conn:
+    with get_connection() as conn: # Attention à bien utiliser ton objet db habituel
+        # La requête est BEAUCOUP plus simple maintenant !
         rows = conn.execute("""
             SELECT 
-                mp.plan_date, mp.meal_type, mp.id AS plan_id, mp.is_logged,
-                r.id AS recipe_id, r.name AS recipe_name, r.servings,
-                ROUND(SUM(i.kcal), 0) AS total_kcal,
-                ROUND(SUM(i.protein_g), 1) AS total_protein_g,
-                ROUND(SUM(i.carbs_g), 1) AS total_carbs_g,
-                ROUND(SUM(i.fat_g), 1) AS total_fat_g,
-                ROUND(SUM(i.fiber_g), 1) AS total_fiber_g,
-                ROUND(SUM(i.iron_mg), 1) AS total_iron_mg
-            FROM meal_plan mp
-            JOIN recipes r ON r.id = mp.recipe_id
-            LEFT JOIN ingredients i ON i.recipe_id = r.id
-            WHERE mp.user_id = ? AND mp.plan_date >= ? AND mp.plan_date < date(?, '+7 days')
-            GROUP BY mp.id
+                log_date AS plan_date, 
+                meal_type, 
+                id AS plan_id, 
+                1 AS is_logged, 
+                recipe_id, 
+                label AS recipe_name, 
+                servings,
+                kcal AS total_kcal,
+                protein_g AS total_protein_g,
+                carbs_g AS total_carbs_g,
+                fat_g AS total_fat_g,
+                fiber_g AS total_fiber_g,
+                0 AS total_iron_mg -- On force 0 au cas où le fer ne soit pas dans food_log
+            FROM food_log
+            WHERE user_id = ? AND log_date >= ? AND log_date < date(?, '+7 days')
         """, (user_id, start_date, start_date)).fetchall()
 
     start = datetime.strptime(start_date, "%Y-%m-%d").date()
     
     # 1. On prépare un dictionnaire vide pour les 7 jours de la semaine
     week_plan = {}
+    from models import MEAL_TYPES # Assure-toi que cet import est bon
     for i in range(7):
         d_str = (start + timedelta(days=i)).isoformat()
         week_plan[d_str] = {
@@ -664,7 +703,7 @@ def get_week_dashboard(user_id: int, start_date: str) -> dict:
             }
         }
 
-    # 2. On remplit les cases avec les repas trouvés dans la base de données
+    # 2. On remplit les cases avec les repas trouvés dans food_log
     for r in rows:
         d_str = r["plan_date"]
         if d_str in week_plan:
@@ -680,7 +719,6 @@ def get_week_dashboard(user_id: int, start_date: str) -> dict:
             if meal["total_iron_mg"]: week_plan[d_str]["daily_totals"]["iron_mg"] += meal["total_iron_mg"]
             
     return week_plan
-
 # ── Authentification & Sécurité ───────────────────────────────────────────────
 
 def get_user_by_username(username: str):

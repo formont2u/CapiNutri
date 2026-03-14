@@ -73,14 +73,14 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
   <div class="d-flex align-items-center gap-3">
-    <a href="{{ url_for('week_view', start=prev_week) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-left"></i></a>
+    <a href="{{ url_for('planning.week_view', start=prev_week) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-left"></i></a>
     <h1 class="mb-0" style="font-size: 1.5rem; font-weight: 800;">
       <i class="bi bi-calendar3-week text-accent"></i> {{ week_label }}
     </h1>
-    <a href="{{ url_for('week_view', start=next_week) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-right"></i></a>
+    <a href="{{ url_for('planning.week_view', start=next_week) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-right"></i></a>
   </div>
   
-  <a href="{{ url_for('shopping_list', start=days[0].date) }}" class="btn btn-accent d-flex align-items-center gap-2 shadow-sm">
+  <a href="{{ url_for('planning.shopping_list', start=days[0].date) }}" class="btn btn-accent d-flex align-items-center gap-2 shadow-sm">
     <i class="bi bi-cart3"></i> Liste de courses
   </a>
 </div>
@@ -95,7 +95,7 @@
     <div class="day-header {{ 'is-today' if day.is_today else '' }}">
       <div class="d-flex justify-content-between align-items-center mb-1">
         <h5 class="mb-0 fw-bold">{{ day.label }}</h5>
-        <a href="{{ url_for('dashboard', date_str=day.date) }}" class="text-muted" title="Voir la journée"><i class="bi bi-box-arrow-in-up-right"></i></a>
+        <a href="{{ url_for('tracking.dashboard', date_str=day.date) }}" class="text-muted" title="Voir la journée"><i class="bi bi-box-arrow-in-up-right"></i></a>
       </div>
       
       <div class="d-flex justify-content-between text-muted mt-2" style="font-size: 0.8rem;">
@@ -114,7 +114,15 @@
     {% for type_key, type_name in MEAL_TYPES.items() %}
       {% set meal = day.data.meals[type_key] %}
       {% if meal %}
-      <a href="{{ url_for('view_recipe', recipe_id=meal.recipe_id) }}" class="meal-card text-decoration-none">
+        {% if meal.recipe_id %}
+          <a href="{{ url_for('recipes.view_recipe', recipe_id=meal.recipe_id) }}" class="meal-card text-decoration-none">
+        {{ meal.recipe_name}} ({{ meal.total_kcal }} kcal)
+          </a>
+        {% else %}
+          <div class="meal-card">
+        {{ meal.recipe_name}} ({{ meal.total_kcal }} kcal)
+          </div>
+        {% endif %}
         <div class="meal-type-label">{{ type_name }}</div>
         <div class="meal-title">{{ meal.recipe_name }}</div>
         <div class="d-flex gap-1 mt-2 flex-wrap">
@@ -125,7 +133,7 @@
         </div>
       </a>
       {% else %}
-      <a href="{{ url_for('dashboard', date_str=day.date) }}" class="meal-card text-center text-muted text-decoration-none" style="border: 1px dashed #ced4da; background: transparent;">
+      <a href="{{ url_for('tracking.dashboard', date_str=day.date) }}" class="meal-card text-center text-muted text-decoration-none" style="border: 1px dashed #ced4da; background: transparent;">
         <i class="bi bi-plus"></i> <span style="font-size: 0.8rem;">{{ type_name }}</span>
       </a>
       {% endif %}

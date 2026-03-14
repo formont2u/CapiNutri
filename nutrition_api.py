@@ -53,8 +53,8 @@ OFF_SEARCH_URL  = "https://world.openfoodfacts.org/cgi/search.pl"
 OFF_PRODUCT_URL = "https://world.openfoodfacts.org/api/v2/product/{barcode}"
 OFF_FIELDS      = "product_name,product_name_no,product_name_fr,product_name_en,brands,nutriments"
 
-CONNECT_TIMEOUT = 3
-READ_TIMEOUT    = 6
+CONNECT_TIMEOUT = 10
+READ_TIMEOUT    = 20
 
 
 # ─────────────────────────────────────────────────────────────────────────────

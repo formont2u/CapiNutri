@@ -5,14 +5,14 @@
 
 <!-- Back + actions -->
 <div class="d-flex justify-content-between align-items-center mb-4">
-  <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
+  <a href="{{ url_for('recipes.index') }}" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
     <i class="bi bi-arrow-left"></i> Retour
   </a>
   <div class="d-flex gap-2">
-    <a href="{{ url_for('edit_recipe', recipe_id=recipe.id) }}" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
+    <a href="{{ url_for('recipes.edit_recipe', recipe_id=recipe.id) }}" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
       <i class="bi bi-pencil"></i> Modifier
     </a>
-    <form method="post" action="{{ url_for('delete_recipe', recipe_id=recipe.id) }}"
+    <form method="post" action="{{ url_for('recipes.delete_recipe', recipe_id=recipe.id) }}"
           onsubmit="return confirm('Supprimer {{ recipe.name }} ?')">
       <button class="btn btn-sm btn-outline-danger d-flex align-items-center gap-1">
         <i class="bi bi-trash"></i> Supprimer
@@ -22,16 +22,22 @@
 </div>
 
 <!-- Header -->
-<div class="detail-header">
+<div class="detail-header position-relative">
+  {% if base_cost > 0 %}
+  <div class="position-absolute top-0 end-0 mt-4 me-4 text-end">
+    <div class="badge bg-success fs-6 shadow-sm mb-1">
+      <i class="bi bi-tag-fill"></i> {{ cost_per_serving|round(1) }} NOK <span class="fw-normal" style="font-size: 0.75rem;">/ portion</span>
+    </div>
+    <div class="text-muted" style="font-size: 0.8rem;">
+      Total : <span id="displayTotalCost">{{ (base_cost * scale)|round(1) }}</span> NOK
+    </div>
+  </div>
+  {% endif %}
+
   {% if recipe.category %}
   <div class="detail-category"><i class="bi bi-tag"></i> {{ recipe.category }}</div>
   {% endif %}
   <h1>{{ recipe.name }}</h1>
-  <div class="text-muted" style="font-size:.9rem">
-    Recette de base : {{ recipe.servings|int if recipe.servings == recipe.servings|int else recipe.servings }}
-    portion{{ 's' if recipe.servings != 1 }}
-  </div>
-</div>
 
 <!-- Portion slider -->
 {% if recipe.ingredients %}
@@ -184,21 +190,32 @@
         <summary>Détail par ingrédient</summary>
         <table class="nutr-ing-table">
           <thead><tr>
-            <th>Ingrédient</th><th>kcal</th><th>P</th><th>G</th><th>L</th>
+            <th>Ingrédient</th><th>Prix</th><th>kcal</th><th>P</th><th>G</th><th>L</th>
           </tr></thead>
           <tbody id="nutrIngBody">
             {% for ing in recipe.ingredients %}
-            {% if ing.has_nutrition %}
+            {% if ing.has_nutrition or ing.estimated_cost > 0 %}
             <tr
-              data-kcal="{{ ing.kcal }}"
+              data-kcal="{{ ing.kcal or 0 }}"
               data-protein="{{ ing.protein_g or 0 }}"
               data-carbs="{{ ing.carbs_g or 0 }}"
-              data-fat="{{ ing.fat_g or 0 }}">
-              <td>{{ ing.name }}</td>
-              <td class="nutr-ing-kcal">{{ ing.kcal|int }}</td>
-              <td class="nutr-ing-p">{{ ing.protein_g }}g</td>
-              <td class="nutr-ing-c">{{ ing.carbs_g }}g</td>
-              <td class="nutr-ing-f">{{ ing.fat_g }}g</td>
+              data-fat="{{ ing.fat_g or 0 }}"
+              data-basecost="{{ ing.estimated_cost or 0 }}">
+              <td>
+                {{ ing.name }}
+                {% if ing.cheapest_shop %}
+                <span style="font-size:0.65rem; color:#888; display:block;">Chez {{ ing.cheapest_shop }}</span>
+                {% endif %}
+              </td>
+              <td class="nutr-ing-cost text-success fw-bold">
+                {% if ing.estimated_cost > 0 %}
+                  {{ (ing.estimated_cost * scale)|round(1) }} kr
+                {% else %}—{% endif %}
+              </td>
+              <td class="nutr-ing-kcal">{{ ing.kcal|int if ing.kcal else '—' }}</td>
+              <td class="nutr-ing-p">{{ ing.protein_g|round(1) if ing.protein_g else '—' }}g</td>
+              <td class="nutr-ing-c">{{ ing.carbs_g|round(1) if ing.carbs_g else '—' }}g</td>
+              <td class="nutr-ing-f">{{ ing.fat_g|round(1) if ing.fat_g else '—' }}g</td>
             </tr>
             {% endif %}
             {% endfor %}
@@ -346,7 +363,7 @@ function updateAll(servings) {
     barFat.style.width     = (dispF / macroTotal * 100) + '%';
   }
 
-  // Update ingredient detail table
+ // Update ingredient detail table
   if (nutrIngBody) {
     nutrIngBody.querySelectorAll('tr').forEach((tr, i) => {
       // Find matching ingredient by kcal data attribute
@@ -355,16 +372,34 @@ function updateAll(servings) {
       const baseC    = parseFloat(tr.dataset.carbs);
       const baseF    = parseFloat(tr.dataset.fat);
       let dk = baseKcal * scale, dp = baseP * scale, dc = baseC * scale, df = baseF * scale;
+      
       if (currentView === 'perserving' && servings > 0) {
         dk /= servings; dp /= servings; dc /= servings; df /= servings;
       }
+      
       tr.querySelector('.nutr-ing-kcal').textContent = Math.round(dk);
       tr.querySelector('.nutr-ing-p').textContent    = fmt(Math.round(dp*10)/10) + 'g';
       tr.querySelector('.nutr-ing-c').textContent    = fmt(Math.round(dc*10)/10) + 'g';
       tr.querySelector('.nutr-ing-f').textContent    = fmt(Math.round(df*10)/10) + 'g';
+
+      // --- NOUVEAU : Mise à jour du prix détaillé par ingrédient ICI ---
+      const costTd = tr.querySelector('.nutr-ing-cost');
+      if (costTd) {
+        const baseItemCost = parseFloat(tr.dataset.basecost);
+        if (baseItemCost > 0) {
+          costTd.textContent = (baseItemCost * scale).toFixed(1) + ' kr';
+        }
+      }
     });
   }
-}
+
+  // --- NOUVEAU : Mise à jour du prix TOTAL (En dehors de la boucle !) ---
+  const costEl = document.getElementById('displayTotalCost');
+  if (costEl) {
+    const baseTotalCost = {{ base_cost }};
+    costEl.textContent = (baseTotalCost * scale).toFixed(1);
+  }
+} // Fin de la fonction updateAll
 
 // Slider events
 if (slider) {
