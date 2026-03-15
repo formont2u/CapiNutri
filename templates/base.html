@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Capynutri{% endblock %}</title>
+  
   <style>
     @font-face {
       font-family: 'Radicalis';
@@ -14,64 +15,53 @@
   </style>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
   <link rel="icon" href="{{ url_for('static', filename='logo.png') }}" type="image/png">
+  
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body>
 
-<!-- Sidebar -->
-<div id="sidebar">
+{% macro nav_link(endpoint, icon, text) %}
+  <a href="{{ url_for(endpoint) }}" class="{{ 'active' if request.endpoint == endpoint else '' }}">
+    <i class="bi {{ icon }}"></i> {{ text }}
+  </a>
+{% endmacro %}
+
+<aside id="sidebar">
   <div class="brand d-flex flex-column align-items-center mb-4 mt-2">
-  <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo Capynutri" style="height: 60px; border-radius: 12px; margin-bottom: 10px;">
-  
-  <div style="font-family: 'Radicalis', cursive; color: #ffffff; font-size: 2.2rem; margin-top: -5px;">
-    Capynutri
+    <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo Capynutri" style="height: 60px; border-radius: 12px; margin-bottom: 10px;">
+    <div style="font-family: 'Radicalis', cursive; color: #ffffff; font-size: 2.2rem; margin-top: -5px;">
+      Capynutri
+    </div>
   </div>
-</div>
+  
   <nav>
-    <a href="{{ url_for('recipes.index') }}" class="{{ 'active' if request.endpoint == 'index' and not request.args.get('category') else '' }}">
+    <a href="{{ url_for('recipes.index') }}" class="{{ 'active' if request.endpoint == 'recipes.index' and not request.args.get('category') else '' }}">
       <i class="bi bi-grid-fill"></i> Toutes les recettes
     </a>
-    <a href="{{ url_for('recipes.new_recipe') }}" class="{{ 'active' if request.endpoint == 'new_recipe' else '' }}">
-      <i class="bi bi-plus-circle-fill"></i> Nouvelle recette
-    </a>
+    {{ nav_link('recipes.new_recipe', 'bi-plus-circle-fill', 'Nouvelle recette') }}
+    
     <div class="nav-section">Planification</div>
-    <a href="{{ url_for('planning.meal_plan') }}" class="{{ 'active' if request.endpoint == 'meal_plan' else '' }}">
-      <i class="bi bi-calendar2-week-fill"></i> Planning repas
-    </a>
-    <a href="{{ url_for('tracking.dashboard') }}" class="{{ 'active' if request.endpoint == 'dashboard' else '' }}">
-      <i class="bi bi-activity"></i> Dashboard
-    </a>
-    <a href="{{ url_for('planning.week_view') }}" class="{{ 'active' if request.endpoint == 'week_view' else '' }}">
-      <i class="bi bi-calendar3-week"></i> Vue semaine
-    </a>
+    {{ nav_link('tracking.dashboard', 'bi-activity', 'Dashboard') }}
+    {{ nav_link('planning.week_view', 'bi-calendar2-week-fill', 'Planning repas') }}
+    {{ nav_link('planning.week_stats', 'bi-bar-chart-fill', 'Stats semaine') }}
+    
     <div class="nav-section">Données</div>
-    <a href="{{ url_for('planning.pantry') }}" class="{{ 'active' if request.endpoint == 'pantry' else '' }}">
-      <i class="bi bi-box-seam"></i> Garde-Manger
-    </a>
-    <a href="{{ url_for('planning.shopping_list') }}" class="{{ 'active' if request.endpoint == 'shopping_list' else '' }}">
-      <i class="bi bi-cart3"></i> Liste de courses
-    </a>
-    <a href="{{ url_for('library.library') }}" class="{{ 'active' if request.endpoint in ['library','library_edit'] else '' }}">
+    {{ nav_link('planning.pantry', 'bi-box-seam', 'Garde-Manger') }}
+    {{ nav_link('planning.shopping_list', 'bi-cart3', 'Liste de courses') }}
+    <a href="{{ url_for('library.library') }}" class="{{ 'active' if request.endpoint in ['library.library', 'library.library_edit'] else '' }}">
       <i class="bi bi-bookmark-star-fill"></i> Bibliothèque
     </a>
-    <a href="{{ url_for('recipes.index') if 'recipes.index' in endpoints else '#' }}" 
-      class="{{ 'active' if request.endpoint == 'recipes.index' else '' }}">
-      Recettes
-    </a>
-    <a href="{{ url_for('tracking.profile') }}" class="{{ 'active' if request.endpoint == 'profile' else '' }}">
-      <i class="bi bi-person-circle"></i> Profil & Objectifs
-    </a>
+    {{ nav_link('tracking.profile', 'bi-person-circle', 'Profil & Objectifs') }}
     
     {% if categories %}
-    <div class="nav-section">Par catégorie</div>
-    {% for cat in categories %}
-    <a href="{{ url_for('recipes.index', category=cat) }}"
-       class="cat-pill {{ 'active' if request.args.get('category') == cat else '' }}">
-      {{ cat }}
-    </a>
-    {% endfor %}
+      <div class="nav-section">Par catégorie</div>
+      {% for cat in categories %}
+        <a href="{{ url_for('recipes.index', category=cat) }}" class="cat-pill {{ 'active' if request.args.get('category') == cat else '' }}">
+          {{ cat }}
+        </a>
+      {% endfor %}
     {% endif %}
 
     <div class="nav-section">Mon Compte</div>
@@ -83,33 +73,49 @@
         <i class="bi bi-box-arrow-left"></i> Déconnexion
       </a>
     {% else %}
-      <a href="{{ url_for('login') }}" class="{{ 'active' if request.endpoint == 'login' else '' }}">
-        <i class="bi bi-box-arrow-in-right"></i> Se connecter
-      </a>
+      {{ nav_link('auth.login', 'bi-box-arrow-in-right', 'Se connecter') }}
     {% endif %}
   </nav>
-  <div class="sidebar-footer">Planning + Bibliothèque actifs</div>
-</div>
+  
+  <div class="sidebar-footer">Mode : Premium Architecture 🚀</div>
+</aside>
 
-<!-- Main -->
-<div id="main">
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <div class="mb-4">
-        {% for category, message in messages %}
-          <div class="flash-{{ category }} d-flex align-items-center gap-2">
-            <i class="bi bi-{{ 'check-circle' if category == 'success' else 'info-circle' if category == 'info' else 'exclamation-triangle' }}"></i>
-            {{ message }}
-          </div>
-        {% endfor %}
-      </div>
-    {% endif %}
-  {% endwith %}
-
+<main id="main">
   {% block content %}{% endblock %}
-</div>
+</main>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <script>
+      document.addEventListener("DOMContentLoaded", function() {
+        const Toast = Swal.mixin({
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 4000,
+          timerProgressBar: true,
+          didOpen: (toast) => {
+            toast.addEventListener('mouseenter', Swal.stopTimer)
+            toast.addEventListener('mouseleave', Swal.resumeTimer)
+          }
+        });
+
+        {% for category, message in messages %}
+          // Mapping des catégories Flask vers les icônes SweetAlert2
+          {% set swal_icon = 'success' if category == 'success' else 'error' if category == 'danger' or category == 'error' else 'warning' if category == 'warning' else 'info' %}
+          
+          Toast.fire({
+            icon: '{{ swal_icon }}',
+            title: '{{ message | safe }}'
+          });
+        {% endfor %}
+      });
+    </script>
+  {% endif %}
+{% endwith %}
+
 {% block scripts %}{% endblock %}
 </body>
 </html>

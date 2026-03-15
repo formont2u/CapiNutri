@@ -2,28 +2,41 @@
 {% block title %}Connexion — Capynutri{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center mt-5">
-  <div class="col-md-6 col-lg-4">
-    <div class="panel border-0 shadow-sm text-center p-4">
-      <i class="bi bi-person-circle text-accent mb-3" style="font-size: 3rem;"></i>
-      <h3 class="fw-bold mb-4">Bon retour !</h3>
-      
-      <form method="post">
-        <div class="mb-3 text-start">
-          <label class="form-label text-muted small fw-bold text-uppercase">Nom d'utilisateur</label>
-          <input type="text" class="form-control" name="username" required>
-        </div>
-        <div class="mb-4 text-start">
-          <label class="form-label text-muted small fw-bold text-uppercase">Mot de passe</label>
-          <input type="password" class="form-control" name="password" required>
-        </div>
-        <button type="submit" class="btn btn-accent w-100 fw-bold py-2"><i class="bi bi-box-arrow-in-right"></i> Se connecter</button>
-      </form>
-      
-      <div class="mt-4 text-muted small">
-        Pas encore de compte ? <a href="{{ url_for('auth.register') }}" class="text-accent text-decoration-none fw-bold">S'inscrire</a>
+<div class="panel text-center">
+  <div class="mb-4">
+    <i class="bi bi-person-circle" style="font-size: 3.5rem; color: #ff6b3d;"></i>
+    <h3 class="fw-bold mt-2" style="color: #333;">Bon retour !</h3>
+    <p class="text-muted small">Connectez-vous pour accéder à votre tableau de bord.</p>
+  </div>
+  
+  <form method="post" action="{{ url_for('auth.login') }}">
+    
+    <div class="mb-3 text-start">
+      <label for="username" class="form-label text-muted small fw-bold text-uppercase">Nom d'utilisateur</label>
+      <div class="input-group input-group-lg shadow-sm">
+        <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-person"></i></span>
+        <input type="text" class="form-control border-start-0 ps-0" id="username" name="username" placeholder="Saisissez votre pseudo" required autofocus autocomplete="username">
       </div>
     </div>
+    
+    <div class="mb-4 text-start">
+      <label for="password" class="form-label text-muted small fw-bold text-uppercase">Mot de passe</label>
+      <div class="input-group input-group-lg shadow-sm">
+        <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-lock"></i></span>
+        <input type="password" class="form-control border-start-0 ps-0" id="password" name="password" placeholder="••••••••" required autocomplete="current-password">
+      </div>
+    </div>
+    
+    <button type="submit" class="btn btn-dark btn-lg w-100 fw-bold shadow-sm rounded-pill" style="background-color: #333; border: none; transition: transform 0.2s;">
+      <i class="bi bi-box-arrow-in-right me-2"></i> Se connecter
+    </button>
+  </form>
+  
+  <div class="mt-4 text-muted small">
+    Pas encore de compte ? 
+    <a href="{{ url_for('auth.register') }}" class="text-decoration-none fw-bold" style="color: #ff6b3d; transition: opacity 0.2s;">
+      S'inscrire
+    </a>
   </div>
 </div>
 {% endblock %}

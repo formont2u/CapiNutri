@@ -1,259 +1,243 @@
 {% extends "base.html" %}
-{% block title %}{{ recipe.name }} — Recipe Book{% endblock %}
+{% block title %}{{ recipe.name }} — Capynutri{% endblock %}
 
 {% block content %}
 
-<!-- Back + actions -->
-<div class="d-flex justify-content-between align-items-center mb-4">
-  <a href="{{ url_for('recipes.index') }}" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
-    <i class="bi bi-arrow-left"></i> Retour
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+  <a href="{{ url_for('recipes.index') }}" class="btn btn-light rounded-circle shadow-sm" title="Retour aux recettes">
+    <i class="bi bi-arrow-left"></i>
   </a>
+  
   <div class="d-flex gap-2">
-    <a href="{{ url_for('recipes.edit_recipe', recipe_id=recipe.id) }}" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
-      <i class="bi bi-pencil"></i> Modifier
+    <a href="{{ url_for('recipes.edit_recipe', recipe_id=recipe.id) }}" class="btn btn-outline-dark rounded-pill fw-bold shadow-sm px-3">
+      <i class="bi bi-pencil-fill"></i> <span class="d-none d-sm-inline">Modifier</span>
     </a>
-    <form method="post" action="{{ url_for('recipes.delete_recipe', recipe_id=recipe.id) }}"
-          onsubmit="return confirm('Supprimer {{ recipe.name }} ?')">
-      <button class="btn btn-sm btn-outline-danger d-flex align-items-center gap-1">
-        <i class="bi bi-trash"></i> Supprimer
+    <form id="deleteRecipeForm" method="post" action="{{ url_for('recipes.delete_recipe', recipe_id=recipe.id) }}">
+      <button type="button" onclick="confirmDelete('{{ recipe.name|replace("'", "\\'") }}')" class="btn btn-outline-danger rounded-pill fw-bold shadow-sm px-3">
+        <i class="bi bi-trash-fill"></i> <span class="d-none d-sm-inline">Supprimer</span>
       </button>
     </form>
   </div>
 </div>
 
-<!-- Header -->
-<div class="detail-header position-relative">
-  {% if base_cost > 0 %}
-  <div class="position-absolute top-0 end-0 mt-4 me-4 text-end">
-    <div class="badge bg-success fs-6 shadow-sm mb-1">
-      <i class="bi bi-tag-fill"></i> {{ cost_per_serving|round(1) }} NOK <span class="fw-normal" style="font-size: 0.75rem;">/ portion</span>
-    </div>
-    <div class="text-muted" style="font-size: 0.8rem;">
-      Total : <span id="displayTotalCost">{{ (base_cost * scale)|round(1) }}</span> NOK
-    </div>
-  </div>
-  {% endif %}
+<div class="card border-0 shadow-sm rounded-4 mb-4 bg-white position-relative overflow-hidden">
+  <div class="card-body p-4 p-md-5">
+    
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+      <div>
+        {% if recipe.category %}
+          <span class="badge border text-muted px-3 py-2 rounded-pill fw-bold mb-3" style="background-color: #f8f9fa;">
+            <i class="bi bi-tag-fill" style="color: var(--accent);"></i> {{ recipe.category }}
+          </span>
+        {% endif %}
+        <h1 class="fw-bold mb-0 text-dark" style="font-size: 2.5rem; letter-spacing: -0.5px;">{{ recipe.name }}</h1>
+      </div>
 
-  {% if recipe.category %}
-  <div class="detail-category"><i class="bi bi-tag"></i> {{ recipe.category }}</div>
-  {% endif %}
-  <h1>{{ recipe.name }}</h1>
+      <div class="d-flex flex-column align-items-end gap-2">
+        {% if nutri_data and nutri_data.grade %}
+          {% set ns_colors = {'A': '#008b4c', 'B': '#80c23a', 'C': '#fecb02', 'D': '#f08100', 'E': '#e63e11'} %}
+          <div class="badge rounded-pill shadow-sm px-3 py-2 d-flex align-items-center gap-2" style="background-color: {{ ns_colors[nutri_data.grade] }}; color: {{ '#fff' if nutri_data.grade in ['A','B','D','E'] else '#000' }}; font-size: 1rem;">
+            <i class="bi bi-activity"></i> Nutri-Score <strong>{{ nutri_data.grade }}</strong>
+          </div>
+        {% endif %}
+        
+        {% if base_cost > 0 %}
+          <div class="text-end">
+            <div class="badge bg-success shadow-sm px-3 py-2 fs-6 rounded-pill mb-1">
+              <i class="bi bi-tag-fill"></i> {{ cost_per_serving|round(1) }} NOK <span class="fw-normal small">/ portion</span>
+            </div>
+            <div class="text-muted small fw-bold mt-1">
+              Total : <span id="displayTotalCost" class="text-dark">{{ (base_cost * scale)|round(1) }}</span> NOK
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
 
-<!-- Portion slider -->
-{% if recipe.ingredients %}
-<div class="portion-control" id="portionControl">
-  <label><i class="bi bi-people-fill"></i> Portions</label>
-  <button class="btn btn-sm btn-outline-secondary" id="btnMinus" style="border-radius:50%;width:32px;height:32px;padding:0">−</button>
-  <input type="range" id="servingSlider"
-    min="0.5" max="{{ [recipe.servings * 6, 20]|min }}"
-    step="0.5" value="{{ servings }}">
-  <button class="btn btn-sm btn-outline-secondary" id="btnPlus" style="border-radius:50%;width:32px;height:32px;padding:0">+</button>
-  <div class="portion-val" id="servingDisplay">
-    {{ servings|int if servings == servings|int else servings }}
+    {% if recipe.ingredients %}
+    <div class="bg-light rounded-pill p-2 d-flex align-items-center gap-3 shadow-sm mt-4" style="max-width: 400px; border: 1px solid #ebebf0;">
+      <div class="px-3 fw-bold text-muted small text-uppercase"><i class="bi bi-people-fill text-accent"></i> Portions</div>
+      <button class="btn btn-white bg-white rounded-circle shadow-sm border" id="btnMinus" style="width:36px;height:36px;padding:0; flex-shrink: 0;">−</button>
+      <input type="range" class="form-range" id="servingSlider" min="0.5" max="{{ [recipe.servings * 6, 20]|min }}" step="0.5" value="{{ servings }}">
+      <button class="btn btn-white bg-white rounded-circle shadow-sm border" id="btnPlus" style="width:36px;height:36px;padding:0; flex-shrink: 0;">+</button>
+      <div class="fw-bold fs-5 text-accent text-center" id="servingDisplay" style="min-width: 45px;">
+        {{ servings|int if servings == servings|int else servings }}
+      </div>
+    </div>
+    {% endif %}
+    
   </div>
 </div>
-{% endif %}
 
-<div class="row g-3">
+<div class="row g-4">
 
-  <!-- ── Left column: Ingredients + Nutrition ── -->
-  <div class="col-lg-5">
+  <div class="col-lg-5 d-flex flex-column gap-4">
 
-    <!-- Ingredients -->
     {% if recipe.ingredients %}
-    <div class="panel">
-      <div class="panel-title"><i class="bi bi-basket2"></i> Ingrédients</div>
-      <table class="ing-table" id="ingTable">
-        {% for ing in recipe.ingredients %}
-        <tr>
-          <td>{{ ing.name }}</td>
-          <td class="ing-qty" data-base="{{ ing.quantity }}" data-unit="{{ ing.unit }}">
-            {{ ing.quantity|int if ing.quantity == ing.quantity|int else ing.quantity }}{% if ing.unit %}&nbsp;{{ ing.unit }}{% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </table>
+    <div class="card border-0 shadow-sm rounded-4 bg-white">
+      <div class="card-body p-4">
+        <h5 class="fw-bold text-secondary mb-4"><i class="bi bi-basket2-fill text-success"></i> Ingrédients</h5>
+        <ul class="list-group list-group-flush" id="ingTable">
+          {% for ing in recipe.ingredients %}
+          <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-3 border-bottom">
+            <span class="fw-bold text-dark">{{ ing.name }}</span>
+            <span class="badge bg-light text-dark border fs-6 ing-qty" data-base="{{ ing.quantity }}" data-unit="{{ ing.unit }}">
+              {{ ing.quantity|int if ing.quantity == ing.quantity|int else ing.quantity }}{% if ing.unit %}&nbsp;{{ ing.unit }}{% endif %}
+            </span>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
     </div>
     {% endif %}
 
-    <!-- Nutrition panel (only if at least one ingredient has data) -->
     {% if recipe.has_nutrition %}
     {% set total = recipe.total_nutrition(scale) %}
     {% set per_serving = recipe.nutrition_per_serving(servings) %}
-    <div class="panel nutr-panel" id="nutrPanel">
-      <div class="panel-title d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-fire"></i> Nutrition</span>
-        <div class="nutr-toggle-wrap">
-          <button class="nutr-view-btn active" data-view="total">Total</button>
-          <button class="nutr-view-btn" data-view="perserving">Par portion</button>
-        </div>
-      </div>
-
-      <!-- Big kcal number -->
-      <div class="kcal-big" id="kcalBig">
-        <span class="kcal-num"
-              data-total="{{ total.kcal if total else 0 }}"
-              data-per="{{ per_serving.kcal if per_serving else 0 }}"
-              id="kcalNum">{{ total.kcal|int if total else '—' }}</span>
-        <span class="kcal-unit">kcal</span>
-      </div>
-
-      <!-- Macro bars -->
-      {% if total %}
-      {% set macro_total = (total.protein_g or 0) + (total.carbs_g or 0) + (total.fat_g or 0) %}
-      <div class="macro-bars" id="macroBars"
-           data-p-total="{{ total.protein_g or 0 }}"  data-p-per="{{ per_serving.protein_g if per_serving else 0 }}"
-           data-c-total="{{ total.carbs_g or 0 }}"    data-c-per="{{ per_serving.carbs_g if per_serving else 0 }}"
-           data-f-total="{{ total.fat_g or 0 }}"      data-f-per="{{ per_serving.fat_g if per_serving else 0 }}"
-           data-macro-total="{{ macro_total }}">
-        {% set pct_p = ((total.protein_g or 0) / macro_total * 100) | round(1) if macro_total > 0 else 0 %}
-        {% set pct_c = ((total.carbs_g   or 0) / macro_total * 100) | round(1) if macro_total > 0 else 0 %}
-        {% set pct_f = ((total.fat_g     or 0) / macro_total * 100) | round(1) if macro_total > 0 else 0 %}
-
-        <div class="macro-row">
-          <div class="macro-label"><span class="macro-dot" style="background:#4a90e2"></span>Protéines</div>
-          <div class="macro-bar-wrap">
-            <div class="macro-bar" style="width:{{ pct_p }}%;background:#4a90e2" id="barProtein"></div>
-          </div>
-          <div class="macro-val" id="valProtein">{{ (total.protein_g or 0)|round(1) }}g</div>
-        </div>
-        <div class="macro-row">
-          <div class="macro-label"><span class="macro-dot" style="background:#f5a623"></span>Glucides</div>
-          <div class="macro-bar-wrap">
-            <div class="macro-bar" style="width:{{ pct_c }}%;background:#f5a623" id="barCarbs"></div>
-          </div>
-          <div class="macro-val" id="valCarbs">{{ (total.carbs_g or 0)|round(1) }}g</div>
-        </div>
-        <div class="macro-row">
-          <div class="macro-label"><span class="macro-dot" style="background:#e8571a"></span>Lipides</div>
-          <div class="macro-bar-wrap">
-            <div class="macro-bar" style="width:{{ pct_f }}%;background:#e8571a" id="barFat"></div>
-          </div>
-          <div class="macro-val" id="valFat">{{ (total.fat_g or 0)|round(1) }}g</div>
-        </div>
-      </div>
-      {% endif %} {% if total %}
-      <div class="nutr-micros mt-4 mb-3">
-        <h6 class="text-muted mb-3" style="font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-          <i class="bi bi-heart-pulse text-danger"></i> Santé & Micronutriments
-        </h6>
+    
+    <div class="card border-0 shadow-sm rounded-4 bg-white" id="nutrPanel">
+      <div class="card-body p-4">
         
-        <div class="row g-2" style="font-size: 0.85rem;">
-          <div class="col-6">
-            <div class="p-2 bg-light rounded h-100">
-              <div class="d-flex justify-content-between mb-1">
-                <span class="text-muted">Fibres</span>
-                <strong class="text-success" id="valFiber" data-base="{{ total.fiber_g or 0 }}">{{ (total.fiber_g or 0)|round(1) }} g</strong>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h5 class="fw-bold text-secondary mb-0"><i class="bi bi-fire text-accent"></i> Nutrition</h5>
+          <div class="btn-group btn-group-sm shadow-sm" role="group">
+            <button class="btn btn-outline-dark active nutr-view-btn fw-bold" data-view="total">Total</button>
+            <button class="btn btn-outline-dark nutr-view-btn fw-bold" data-view="perserving">1 Portion</button>
+          </div>
+        </div>
+
+        <div class="text-center mb-4">
+          <span class="display-3 fw-bold text-accent" data-total="{{ total.kcal if total else 0 }}" data-per="{{ per_serving.kcal if per_serving else 0 }}" id="kcalNum">
+            {{ total.kcal|int if total else '—' }}
+          </span>
+          <span class="text-muted fw-bold">kcal</span>
+        </div>
+
+        {% if total %}
+        {% set macro_total = (total.protein_g or 0) + (total.carbs_g or 0) + (total.fat_g or 0) %}
+        <div id="macroBars">
+          {% for label, color, field in [('Protéines', '#4a90e2', 'protein_g'), ('Glucides', '#f5a623', 'carbs_g'), ('Lipides', '#e8571a', 'fat_g')] %}
+            {% set val = total[field] or 0 %}
+            {% set pct = (val / macro_total * 100)|round(1) if macro_total > 0 else 0 %}
+            <div class="mb-3">
+              <div class="d-flex justify-content-between align-items-end mb-1">
+                <span class="small fw-bold text-secondary"><i class="bi bi-circle-fill me-1" style="color: {{ color }}; font-size: 0.6rem;"></i> {{ label }}</span>
+                <span class="small fw-bold text-dark" id="val{{ field|capitalize|replace('_g','') }}">{{ val|round(1) }}g</span>
               </div>
-              <div class="d-flex justify-content-between mb-1">
-                <span class="text-muted">Sucres</span>
-                <strong class="text-warning" id="valSugar" data-base="{{ total.sugars_g or 0 }}">{{ (total.sugars_g or 0)|round(1) }} g</strong>
-              </div>
-              <div class="d-flex justify-content-between mb-1">
-                <span class="text-muted">Gras saturé</span>
-                <strong class="text-danger" id="valSatFat" data-base="{{ total.saturated_g or 0 }}">{{ (total.saturated_g or 0)|round(1) }} g</strong>
-              </div>
-              <div class="d-flex justify-content-between">
-                <span class="text-muted">Oméga 3</span>
-                <strong class="text-primary" id="valOmega" data-base="{{ total.omega3_g or 0 }}">{{ (total.omega3_g or 0)|round(2) }} g</strong>
+              <div class="progress" style="height: 8px; border-radius: 10px; background-color: #f0f3f5;">
+                <div class="progress-bar" id="bar{{ field|capitalize|replace('_g','') }}" role="progressbar" style="width: {{ pct }}%; background-color: {{ color }}; transition: width 0.5s ease;"></div>
               </div>
             </div>
-          </div>
+          {% endfor %}
+        </div>
 
+        <hr class="text-muted my-4">
+        <h6 class="fw-bold text-secondary mb-3 small text-uppercase"><i class="bi bi-heart-pulse-fill text-danger"></i> Micros & Santé</h6>
+        <div class="row g-2 small">
           <div class="col-6">
-            <div class="p-2 bg-light rounded h-100">
-              <div class="d-flex justify-content-between mb-1">
-                <span class="text-muted">Sodium</span>
-                <strong id="valSodium" data-base="{{ total.sodium_mg or 0 }}">{{ (total.sodium_mg or 0)|round(0) }} mg</strong>
-              </div>
-              <div class="d-flex justify-content-between mb-1">
-                <span class="text-muted">Fer</span>
-                <strong id="valIron" data-base="{{ total.iron_mg or 0 }}">{{ (total.iron_mg or 0)|round(1) }} mg</strong>
-              </div>
-              <div class="d-flex justify-content-between mb-1">
-                <span class="text-muted">Magnésium</span>
-                <strong id="valMag" data-base="{{ total.magnesium_mg or 0 }}">{{ (total.magnesium_mg or 0)|round(0) }} mg</strong>
-              </div>
-              <div class="d-flex justify-content-between">
-                <span class="text-muted">Vitamine C</span>
-                <strong id="valVitC" data-base="{{ total.vit_c_mg or 0 }}">{{ (total.vit_c_mg or 0)|round(1) }} mg</strong>
-              </div>
+            <div class="bg-light p-2 rounded-3">
+              <div class="d-flex justify-content-between mb-1"><span class="text-muted">Fibres</span><strong class="text-success" id="valFiber" data-base="{{ total.fiber_g or 0 }}">{{ (total.fiber_g or 0)|round(1) }} g</strong></div>
+              <div class="d-flex justify-content-between mb-1"><span class="text-muted">Sucres</span><strong class="text-warning" id="valSugar" data-base="{{ total.sugars_g or 0 }}">{{ (total.sugars_g or 0)|round(1) }} g</strong></div>
+              <div class="d-flex justify-content-between mb-1"><span class="text-muted">Saturés</span><strong class="text-danger" id="valSatFat" data-base="{{ total.saturated_g or 0 }}">{{ (total.saturated_g or 0)|round(1) }} g</strong></div>
+              <div class="d-flex justify-content-between"><span class="text-muted">Oméga 3</span><strong class="text-primary" id="valOmega" data-base="{{ total.omega3_g or 0 }}">{{ (total.omega3_g or 0)|round(2) }} g</strong></div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="bg-light p-2 rounded-3">
+              <div class="d-flex justify-content-between mb-1"><span class="text-muted">Sodium</span><strong id="valSodium" data-base="{{ total.sodium_mg or 0 }}">{{ (total.sodium_mg or 0)|round(0) }} mg</strong></div>
+              <div class="d-flex justify-content-between mb-1"><span class="text-muted">Fer</span><strong id="valIron" data-base="{{ total.iron_mg or 0 }}">{{ (total.iron_mg or 0)|round(1) }} mg</strong></div>
+              <div class="d-flex justify-content-between mb-1"><span class="text-muted">Magnésium</span><strong id="valMag" data-base="{{ total.magnesium_mg or 0 }}">{{ (total.magnesium_mg or 0)|round(0) }} mg</strong></div>
+              <div class="d-flex justify-content-between"><span class="text-muted">Vitamine C</span><strong id="valVitC" data-base="{{ total.vit_c_mg or 0 }}">{{ (total.vit_c_mg or 0)|round(1) }} mg</strong></div>
             </div>
           </div>
         </div>
+        {% endif %}
+
+        <details class="mt-4">
+          <summary class="fw-bold text-secondary small text-uppercase" style="cursor:pointer; list-style:none;">
+            <i class="bi bi-chevron-down"></i> Détail par ingrédient
+          </summary>
+          <div class="table-responsive mt-3">
+            <table class="table table-sm table-borderless align-middle small">
+              <thead class="text-muted border-bottom">
+                <tr><th>Ingrédient</th><th>Prix</th><th>kcal</th><th>P</th><th>G</th><th>L</th></tr>
+              </thead>
+              <tbody id="nutrIngBody">
+                {% for ing in recipe.ingredients %}
+                  {% if ing.has_nutrition or ing.estimated_cost > 0 %}
+                  <tr class="border-bottom" data-kcal="{{ ing.kcal or 0 }}" data-protein="{{ ing.protein_g or 0 }}" data-carbs="{{ ing.carbs_g or 0 }}" data-fat="{{ ing.fat_g or 0 }}" data-basecost="{{ ing.estimated_cost or 0 }}">
+                    <td class="fw-bold">
+                      {{ ing.name }}
+                      {% if ing.cheapest_shop %}<span class="d-block text-muted" style="font-size:0.65rem;">Chez {{ ing.cheapest_shop }}</span>{% endif %}
+                    </td>
+                    <td class="text-success fw-bold nutr-ing-cost">{% if ing.estimated_cost > 0 %}{{ (ing.estimated_cost * scale)|round(1) }} kr{% else %}—{% endif %}</td>
+                    <td class="nutr-ing-kcal fw-bold text-accent">{{ ing.kcal|int if ing.kcal else '—' }}</td>
+                    <td class="nutr-ing-p">{{ ing.protein_g|round(1) if ing.protein_g else '—' }}</td>
+                    <td class="nutr-ing-c">{{ ing.carbs_g|round(1) if ing.carbs_g else '—' }}</td>
+                    <td class="nutr-ing-f">{{ ing.fat_g|round(1) if ing.fat_g else '—' }}</td>
+                  </tr>
+                  {% endif %}
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </details>
+
       </div>
-      {% endif %}
-	  
-
-      <!-- Per-ingredient breakdown (collapsible) -->
-      <details class="nutr-details" id="nutrDetails">
-        <summary>Détail par ingrédient</summary>
-        <table class="nutr-ing-table">
-          <thead><tr>
-            <th>Ingrédient</th><th>Prix</th><th>kcal</th><th>P</th><th>G</th><th>L</th>
-          </tr></thead>
-          <tbody id="nutrIngBody">
-            {% for ing in recipe.ingredients %}
-            {% if ing.has_nutrition or ing.estimated_cost > 0 %}
-            <tr
-              data-kcal="{{ ing.kcal or 0 }}"
-              data-protein="{{ ing.protein_g or 0 }}"
-              data-carbs="{{ ing.carbs_g or 0 }}"
-              data-fat="{{ ing.fat_g or 0 }}"
-              data-basecost="{{ ing.estimated_cost or 0 }}">
-              <td>
-                {{ ing.name }}
-                {% if ing.cheapest_shop %}
-                <span style="font-size:0.65rem; color:#888; display:block;">Chez {{ ing.cheapest_shop }}</span>
-                {% endif %}
-              </td>
-              <td class="nutr-ing-cost text-success fw-bold">
-                {% if ing.estimated_cost > 0 %}
-                  {{ (ing.estimated_cost * scale)|round(1) }} kr
-                {% else %}—{% endif %}
-              </td>
-              <td class="nutr-ing-kcal">{{ ing.kcal|int if ing.kcal else '—' }}</td>
-              <td class="nutr-ing-p">{{ ing.protein_g|round(1) if ing.protein_g else '—' }}g</td>
-              <td class="nutr-ing-c">{{ ing.carbs_g|round(1) if ing.carbs_g else '—' }}g</td>
-              <td class="nutr-ing-f">{{ ing.fat_g|round(1) if ing.fat_g else '—' }}g</td>
-            </tr>
-            {% endif %}
-            {% endfor %}
-          </tbody>
-        </table>
-      </details>
-
-    </div><!-- /.nutr-panel -->
+    </div>
     {% endif %}
 
-  </div><!-- /.col-lg-5 -->
+  </div>
 
-  <!-- ── Right column: Instructions ── -->
   {% if recipe.instructions %}
   <div class="col-lg-7">
-    <div class="panel steps">
-      <div class="panel-title"><i class="bi bi-list-ol"></i> Instructions</div>
-      <ol>
-        {% for step in recipe.instructions.split('\n') %}
-          {% if step.strip() %}<li>{{ step.strip() }}</li>{% endif %}
-        {% endfor %}
-      </ol>
+    <div class="card border-0 shadow-sm rounded-4 bg-white">
+      <div class="card-body p-4 p-md-5">
+        <h5 class="fw-bold text-secondary mb-4"><i class="bi bi-list-ol text-primary"></i> Préparation</h5>
+        <ol class="list-group list-group-numbered list-group-flush" style="font-size: 1.05rem; line-height: 1.6;">
+          {% for step in recipe.instructions.split('\n') %}
+            {% if step.strip() %}
+              <li class="list-group-item d-flex justify-content-between align-items-start border-0 py-3 px-0">
+                <div class="ms-2 me-auto text-dark">{{ step.strip() }}</div>
+              </li>
+            {% endif %}
+          {% endfor %}
+        </ol>
+      </div>
     </div>
   </div>
   {% endif %}
 
-</div><!-- /.row -->
+</div>
 {% endblock %}
-
 
 {% block scripts %}
 <script>
+// ── 1. SUPPRESSION SÉCURISÉE AVEC SWEETALERT2 ──
+function confirmDelete(recipeName) {
+    Swal.fire({
+        title: 'Supprimer la recette ?',
+        text: `Êtes-vous sûr de vouloir effacer "${recipeName}" ? Cette action est irréversible.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#e53935',
+        cancelButtonColor: '#95a5a6',
+        confirmButtonText: 'Oui, supprimer',
+        cancelButtonText: 'Annuler'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            document.getElementById('deleteRecipeForm').submit();
+        }
+    });
+}
+
+// ── 2. LOGIQUE DU SLIDER DE PORTIONS ──
 const baseServings  = {{ recipe.servings }};
 const slider        = document.getElementById('servingSlider');
 const display       = document.getElementById('servingDisplay');
-const ingCells      = document.querySelectorAll('#ingTable .ing-qty');
+const ingCells      = document.querySelectorAll('.ing-qty');
 
-// Nutrition elements
+// Éléments Nutritionnels
 const kcalNum       = document.getElementById('kcalNum');
 const valProtein    = document.getElementById('valProtein');
 const valCarbs      = document.getElementById('valCarbs');
@@ -264,59 +248,57 @@ const barFat        = document.getElementById('barFat');
 const macroBars     = document.getElementById('macroBars');
 const nutrIngBody   = document.getElementById('nutrIngBody');
 
-// Ingredient nutrition base data (from template)
+// Données de base par ingrédient (injectées par Jinja)
 const ingNutrData = [
   {% for ing in recipe.ingredients %}
-  { kcal: {{ ing.kcal or 'null' }}, p: {{ ing.protein_g or 'null' }},
-    c: {{ ing.carbs_g or 'null' }}, f: {{ ing.fat_g or 'null' }} },
+  { kcal: {{ ing.kcal or 'null' }}, p: {{ ing.protein_g or 'null' }}, c: {{ ing.carbs_g or 'null' }}, f: {{ ing.fat_g or 'null' }} },
   {% endfor %}
 ];
 
-let currentView = 'total';  // 'total' or 'perserving'
+let currentView = 'total'; 
 
-// View toggle
+// Gestion des boutons Vue (Total / Par Portion)
 document.querySelectorAll('.nutr-view-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.nutr-view-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
+    document.querySelectorAll('.nutr-view-btn').forEach(b => {
+        b.classList.remove('active', 'btn-dark', 'text-white');
+        b.classList.add('btn-outline-dark');
+    });
+    btn.classList.add('active', 'btn-dark', 'text-white');
+    btn.classList.remove('btn-outline-dark');
     currentView = btn.dataset.view;
     updateAll(parseFloat(slider?.value || baseServings));
   });
 });
 
 function fmt(v) {
-  if (v === null || v === undefined) return '—';
+  if (v === null || v === undefined || isNaN(v)) return '—';
   return Number.isInteger(v) ? String(v) : v.toFixed(1);
 }
 
 function updateAll(servings) {
   const scale = servings / baseServings;
 
-  // Update ingredients
-  ingCells.forEach(td => {
-    const base = parseFloat(td.dataset.base);
-    const unit = td.dataset.unit;
+  // Mise à jour des quantités d'ingrédients
+  ingCells.forEach(span => {
+    const base = parseFloat(span.dataset.base);
+    const unit = span.dataset.unit;
     const qty  = base * scale;
-    const s    = Number.isInteger(qty) ? String(qty)
-                 : qty < 0.1 ? qty.toFixed(3)
-                 : qty < 10  ? qty.toFixed(1)
-                 : String(Math.round(qty));
-    td.textContent = s + (unit ? '\u00a0' + unit : '');
+    const s    = Number.isInteger(qty) ? String(qty) : qty < 0.1 ? qty.toFixed(3) : qty < 10 ? qty.toFixed(1) : String(Math.round(qty));
+    span.innerHTML = `${s} ${unit ? `<span class="fw-normal text-muted">${unit}</span>` : ''}`;
   });
 
-  // Update serving display
   if (display) display.textContent = Number.isInteger(servings) ? servings : servings.toFixed(1);
 
-  // Update nutrition
-  if (!kcalNum || !macroBars) return;
+  if (!kcalNum) return;
 
-  // Calculate scaled totals
+  // Recalcul des macros totaux
   let totalKcal = 0, totalP = 0, totalC = 0, totalF = 0;
   ingNutrData.forEach(d => {
-    if (d.kcal !== null) { totalKcal += d.kcal * scale; }
-    if (d.p    !== null) { totalP    += d.p    * scale; }
-    if (d.c    !== null) { totalC    += d.c    * scale; }
-    if (d.f    !== null) { totalF    += d.f    * scale; }
+    if (d.kcal !== null) totalKcal += d.kcal * scale;
+    if (d.p !== null)    totalP    += d.p * scale;
+    if (d.c !== null)    totalC    += d.c * scale;
+    if (d.f !== null)    totalF    += d.f * scale;
   });
 
   let dispKcal = totalKcal, dispP = totalP, dispC = totalC, dispF = totalF;
@@ -324,84 +306,58 @@ function updateAll(servings) {
     dispKcal /= servings; dispP /= servings; dispC /= servings; dispF /= servings;
   }
 
+  // Affichage
   kcalNum.textContent = Math.round(dispKcal);
-  valProtein.textContent = fmt(Math.round(dispP * 10)/10) + 'g';
-  valCarbs.textContent   = fmt(Math.round(dispC * 10)/10) + 'g';
-  valFat.textContent     = fmt(Math.round(dispF * 10)/10) + 'g';
+  if(valProtein) valProtein.textContent = fmt(Math.round(dispP * 10)/10) + 'g';
+  if(valCarbs) valCarbs.textContent   = fmt(Math.round(dispC * 10)/10) + 'g';
+  if(valFat) valFat.textContent       = fmt(Math.round(dispF * 10)/10) + 'g';
   
-  // --- MISE À JOUR DES MICRONUTRIMENTS ---
+  // Mise à jour des Micros
   const microIds = ['Fiber', 'Sugar', 'SatFat', 'Omega', 'Sodium', 'Iron', 'Mag', 'VitC'];
   microIds.forEach(id => {
     const el = document.getElementById('val' + id);
     if (!el) return;
-    const baseVal = parseFloat(el.dataset.base) || 0;
+    let scaledVal = (parseFloat(el.dataset.base) || 0) * scale;
+    if (currentView === 'perserving' && servings > 0) scaledVal /= servings;
     
-    // On calcule la valeur mise à l'échelle (scale)
-    let scaledVal = baseVal * scale;
-    
-    // Si on est en vue "Par portion", on divise par le nombre de portions actuelles
-    if (currentView === 'perserving' && servings > 0) {
-      scaledVal /= servings;
-    }
-    
-    // Formatage (pas de virgule pour le sel et magnésium, 2 virgules pour l'oméga, 1 pour le reste)
-    if (id === 'Sodium' || id === 'Mag') {
-      el.textContent = Math.round(scaledVal) + ' mg';
-    } else if (id === 'Omega') {
-      el.textContent = scaledVal.toFixed(2) + ' g';
-    } else {
-      el.textContent = scaledVal.toFixed(1) + (id === 'Iron' || id === 'VitC' ? ' mg' : ' g');
-    }
+    if (id === 'Sodium' || id === 'Mag') el.textContent = Math.round(scaledVal) + ' mg';
+    else if (id === 'Omega') el.textContent = scaledVal.toFixed(2) + ' g';
+    else el.textContent = scaledVal.toFixed(1) + (id === 'Iron' || id === 'VitC' ? ' mg' : ' g');
   });
-  // ----------------------------------------
 
-  // Update bars
+  // Mise à jour des barres
   const macroTotal = dispP + dispC + dispF;
-  if (macroTotal > 0) {
+  if (macroTotal > 0 && barProtein) {
     barProtein.style.width = (dispP / macroTotal * 100) + '%';
     barCarbs.style.width   = (dispC / macroTotal * 100) + '%';
     barFat.style.width     = (dispF / macroTotal * 100) + '%';
   }
 
- // Update ingredient detail table
+  // Détail du tableau
   if (nutrIngBody) {
-    nutrIngBody.querySelectorAll('tr').forEach((tr, i) => {
-      // Find matching ingredient by kcal data attribute
-      const baseKcal = parseFloat(tr.dataset.kcal);
-      const baseP    = parseFloat(tr.dataset.protein);
-      const baseC    = parseFloat(tr.dataset.carbs);
-      const baseF    = parseFloat(tr.dataset.fat);
-      let dk = baseKcal * scale, dp = baseP * scale, dc = baseC * scale, df = baseF * scale;
-      
-      if (currentView === 'perserving' && servings > 0) {
-        dk /= servings; dp /= servings; dc /= servings; df /= servings;
-      }
+    nutrIngBody.querySelectorAll('tr').forEach(tr => {
+      let dk = parseFloat(tr.dataset.kcal) * scale, dp = parseFloat(tr.dataset.protein) * scale, dc = parseFloat(tr.dataset.carbs) * scale, df = parseFloat(tr.dataset.fat) * scale;
+      if (currentView === 'perserving' && servings > 0) { dk /= servings; dp /= servings; dc /= servings; df /= servings; }
       
       tr.querySelector('.nutr-ing-kcal').textContent = Math.round(dk);
-      tr.querySelector('.nutr-ing-p').textContent    = fmt(Math.round(dp*10)/10) + 'g';
-      tr.querySelector('.nutr-ing-c').textContent    = fmt(Math.round(dc*10)/10) + 'g';
-      tr.querySelector('.nutr-ing-f').textContent    = fmt(Math.round(df*10)/10) + 'g';
+      tr.querySelector('.nutr-ing-p').textContent    = fmt(Math.round(dp*10)/10);
+      tr.querySelector('.nutr-ing-c').textContent    = fmt(Math.round(dc*10)/10);
+      tr.querySelector('.nutr-ing-f').textContent    = fmt(Math.round(df*10)/10);
 
-      // --- NOUVEAU : Mise à jour du prix détaillé par ingrédient ICI ---
       const costTd = tr.querySelector('.nutr-ing-cost');
       if (costTd) {
         const baseItemCost = parseFloat(tr.dataset.basecost);
-        if (baseItemCost > 0) {
-          costTd.textContent = (baseItemCost * scale).toFixed(1) + ' kr';
-        }
+        if (baseItemCost > 0) costTd.textContent = (baseItemCost * scale).toFixed(1) + ' kr';
       }
     });
   }
 
-  // --- NOUVEAU : Mise à jour du prix TOTAL (En dehors de la boucle !) ---
+  // Mise à jour du Prix Total
   const costEl = document.getElementById('displayTotalCost');
-  if (costEl) {
-    const baseTotalCost = {{ base_cost }};
-    costEl.textContent = (baseTotalCost * scale).toFixed(1);
-  }
-} // Fin de la fonction updateAll
+  if (costEl) costEl.textContent = ({{ base_cost }} * scale).toFixed(1);
+}
 
-// Slider events
+// Événements du Slider
 if (slider) {
   slider.addEventListener('input', () => updateAll(parseFloat(slider.value)));
   document.getElementById('btnMinus')?.addEventListener('click', () => {

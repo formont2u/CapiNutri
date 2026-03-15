@@ -3,3 +3,4 @@ venv/
 __pycache__/
 *.pyc
 usda_key.txt
+fiche_identite.txt

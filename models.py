@@ -1,34 +1,21 @@
 """
-models.py — Dataclasses for all entities.
+models.py — Dataclasses pures pour toutes les entités.
+La logique métier (algorithmes) a été séparée pour garder ce fichier propre.
 """
 
 from dataclasses import dataclass, field
 from typing import Optional
-from db import NUTRIENT_FIELDS, NUTRIENT_LABELS, RDI, MACRO_FIELDS
 from flask_login import UserMixin
+from db import NUTRIENT_FIELDS
 
+# ── 1. Le Mixin Magique 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def _sum_nutrients(items: list[dict], scale: float = 1.0) -> dict:
-    """Sum a list of nutrient dicts, applying scale."""
-    totals = {f: 0.0 for f in NUTRIENT_FIELDS}
-    for item in items:
-        for f in NUTRIENT_FIELDS:
-            v = item.get(f)
-            if v is not None:
-                totals[f] += v * scale
-    return {k: round(v, 2) for k, v in totals.items()}
-
-
-# ── Ingredient ────────────────────────────────────────────────────────────────
-
-@dataclass
-class Ingredient:
-    name: str
-    quantity: float
-    unit: str = ""
-    # All nutrients (values for the stated quantity, not per 100g)
+@dataclass(kw_only=True)
+class NutritionalMixin:
+    """
+    Cette classe regroupe tous les champs nutritionnels.
+    N'importe quelle autre classe peut en hériter pour obtenir ces 34 champs instantanément.
+    """
     kcal: Optional[float] = None
     protein_g: Optional[float] = None
     carbs_g: Optional[float] = None
@@ -53,7 +40,6 @@ class Ingredient:
     vit_b6_mg: Optional[float] = None
     vit_b9_mcg: Optional[float] = None
     vit_b12_mcg: Optional[float] = None
-    # USDA-enhanced fields
     cholesterol_mg: Optional[float] = None
     trans_fat_g:    Optional[float] = None
     omega3_g:       Optional[float] = None
@@ -64,19 +50,29 @@ class Ingredient:
     manganese_mg:   Optional[float] = None
     vit_e_mg:       Optional[float] = None
     vit_k_mcg:      Optional[float] = None
-    id: Optional[int] = None
-    recipe_id: Optional[int] = None
 
     @property
     def has_nutrition(self) -> bool:
         return self.kcal is not None
 
     def as_nutrient_dict(self, scale: float = 1.0) -> dict:
+        """Retourne un dictionnaire pur des nutriments présents, mis à l'échelle."""
         return {
             f: round(getattr(self, f) * scale, 3)
             for f in NUTRIENT_FIELDS
             if getattr(self, f) is not None
         }
+
+
+# ── 2. Entités de Recettes ────────────────────────────────────────────────────
+
+@dataclass
+class Ingredient(NutritionalMixin):
+    name: str
+    quantity: float
+    unit: str = ""
+    id: Optional[int] = None
+    recipe_id: Optional[int] = None
 
     def display(self, scale: float = 1.0) -> str:
         qty = self.quantity * scale
@@ -84,8 +80,6 @@ class Ingredient:
         unit_str = f" {self.unit}" if self.unit else ""
         return f"{qty_str}{unit_str} {self.name}"
 
-
-# ── Recipe ────────────────────────────────────────────────────────────────────
 
 @dataclass
 class Recipe:
@@ -95,77 +89,14 @@ class Recipe:
     category: Optional[str] = None
     category_id: Optional[int] = None
     ingredients: list[Ingredient] = field(default_factory=list)
-    tags: list[str] = field(default_factory=list)   # tag names
+    tags: list[str] = field(default_factory=list)
     id: Optional[int] = None
 
     def scale_factor(self, desired_servings: float) -> float:
         return desired_servings / self.servings if self.servings else 1.0
 
-    @property
-    def has_nutrition(self) -> bool:
-        return any(i.has_nutrition for i in self.ingredients)
 
-    def total_nutrition(self, scale: float = 1.0) -> Optional[dict]:
-        if not self.has_nutrition:
-            return None
-        return _sum_nutrients(
-            [i.as_nutrient_dict() for i in self.ingredients if i.has_nutrition],
-            scale=scale
-        )
-
-    def nutrition_per_serving(self, current_servings: Optional[float] = None) -> Optional[dict]:
-        servings = current_servings or self.servings
-        scale = self.scale_factor(servings)
-        total = self.total_nutrition(scale)
-        if not total or servings == 0:
-            return None
-        return {k: round(v / servings, 2) for k, v in total.items()}
-
-    def nutri_score(self) -> Optional[dict]:
-        """
-        Simplified Nutri-Score (A→E) based on per-serving nutrition.
-        Returns {"grade": "A", "score": -3, "color": "#...", "text_color": "#..."}
-        or None if no nutrition data.
-        """
-        nutr = self.nutrition_per_serving()
-        if not nutr:
-            return None
-
-        # ── Negative points (higher = worse) ─────────────────────────────────
-        def _pts(val, thresholds):
-            """Score val against ascending threshold list (0-indexed = 1pt)."""
-            if val is None:
-                return 0
-            for i, t in enumerate(thresholds):
-                if val <= t:
-                    return i
-            return len(thresholds)
-
-        kcal = nutr.get("kcal") or 0
-        # Energy in kJ (1 kcal = 4.184 kJ), thresholds per serving ÷ ~2 (rough scale)
-        kj = kcal * 4.184
-        n_energy   = _pts(kj,           [335,670,1005,1340,1675,2010,2345,2680,3015,3350])
-        n_sugars   = _pts(nutr.get("sugars_g"),    [4.5,9,13.5,18,22.5,27,31,36,40,45])
-        n_saturated= _pts(nutr.get("saturated_g"), [1,2,3,4,5,6,7,8,9,10])
-        n_sodium   = _pts(nutr.get("sodium_mg"),   [90,180,270,360,450,540,630,720,810,900])
-        N = n_energy + n_sugars + n_saturated + n_sodium
-
-        # ── Positive points (higher = better) ────────────────────────────────
-        p_fiber   = _pts(nutr.get("fiber_g"),   [0.9,1.9,2.8,3.7,4.7])
-        p_protein = _pts(nutr.get("protein_g"), [1.6,3.2,4.8,6.4,8.0])
-        P = p_fiber + p_protein
-
-        score = N - P
-
-        # ── Grade ─────────────────────────────────────────────────────────────
-        if   score <= -1: grade, bg, fg = "A", "#2e7d32", "#fff"
-        elif score <=  2: grade, bg, fg = "B", "#7cb342", "#fff"
-        elif score <= 10: grade, bg, fg = "C", "#f9a825", "#000"
-        elif score <= 18: grade, bg, fg = "D", "#ef6c00", "#fff"
-        else:             grade, bg, fg = "E", "#c62828", "#fff"
-
-        return {"grade": grade, "score": score, "color": bg, "text_color": fg}
-    
+# ── 3. Utilisateur et Profil ──────────────────────────────────────────────────
 
 @dataclass
 class User(UserMixin):
@@ -176,29 +107,6 @@ class User(UserMixin):
     def get_id(self):
         return str(self.id)
 
-
-# ── User Profile ──────────────────────────────────────────────────────────────
-
-ACTIVITY_MULTIPLIERS = {
-    "sedentary": 1.2,
-    "light":     1.375,
-    "moderate":  1.55,
-    "active":    1.725,
-    "very_active": 1.9,
-}
-ACTIVITY_LABELS = {
-    "sedentary":   "Sédentaire (peu ou pas d'exercice)",
-    "light":       "Légèrement actif (1–3 j/semaine)",
-    "moderate":    "Modérément actif (3–5 j/semaine)",
-    "active":      "Très actif (6–7 j/semaine)",
-    "very_active": "Extrêmement actif (sport + travail physique)",
-}
-GOAL_LABELS = {
-    "maintain": "Maintien du poids",
-    "cut":      "Perte de poids (−20%)",
-    "bulk":     "Prise de masse (+15%)",
-}
-GOAL_MODIFIERS = {"maintain": 1.0, "cut": 0.80, "bulk": 1.15}
 
 @dataclass
 class UserProfile:
@@ -211,131 +119,21 @@ class UserProfile:
     activity_level: str = "sedentary"
     goal: str = "maintain"
     meals_per_day: int = 3
-    # ── Nouvelles données expertes ──
     current_bf_pct: Optional[float] = None
     goal_weight_kg: Optional[float] = None
     goal_bf_pct: Optional[float] = None
 
-    def get_smart_strategy(self) -> Optional[dict]:
-        """Algorithme de Katch-McArdle pour assigner une stratégie scientifique."""
-        if not self.weight_kg or not self.current_bf_pct or not self.goal_bf_pct:
-            return None
-            
-        # 1. Masse Maigre (LBM) et Métabolisme de base (BMR)
-        lbm = self.weight_kg * (1 - (self.current_bf_pct / 100))
-        bmr = 370 + (21.6 * lbm)
-        
-        multipliers = {
-            "sedentary": 1.2, "light": 1.375, "moderate": 1.55,
-            "active": 1.725, "very_active": 1.9
-        }
-        tdee = bmr * multipliers.get(self.activity_level, 1.2)
-        
-        # 2. Choix de la stratégie selon l'écart de gras
-        diff_bf = self.current_bf_pct - self.goal_bf_pct
-        
-        if diff_bf > 3:
-            strategy = "Sèche (Cut)"
-            desc = "Déficit modéré. Protéines hautes pour préserver le muscle."
-            kcal = tdee - 400
-            protein = lbm * 2.4  # Très haut pour protéger la masse
-            fat = self.weight_kg * 0.8
-        elif diff_bf < -2:
-            strategy = "Prise de Masse Propre"
-            desc = "Léger surplus pour construire du muscle sans faire de gras."
-            kcal = tdee + 250
-            protein = lbm * 2.0
-            fat = self.weight_kg * 1.0
-        elif diff_bf > 0:
-            strategy = "Recomposition Corporelle"
-            desc = "Perte de gras et prise de muscle simultanées (Mini déficit)."
-            kcal = tdee - 150
-            protein = lbm * 2.2
-            fat = self.weight_kg * 0.9
-        else:
-            strategy = "Maintien Optimal"
-            desc = "Équilibre parfait pour la santé hormonale et la performance."
-            kcal = tdee
-            protein = lbm * 1.8
-            fat = self.weight_kg * 1.0
-            
-        carbs = (kcal - (protein * 4) - (fat * 9)) / 4
-        
-        return {
-            "strategy": strategy,
-            "description": desc,
-            "lbm": round(lbm, 1),
-            "tdee": round(tdee),
-            "kcal": round(kcal),
-            "protein_g": round(protein),
-            "fat_g": round(fat),
-            "carbs_g": max(0, round(carbs))
-        }
 
-    def effective_goals(self) -> dict:
-        """Surcharge l'ancien système si la stratégie experte est dispo."""
-        smart = self.get_smart_strategy()
-        if smart:
-            return smart  # Retourne les macros intelligentes
-        
-        # Fallback sur ton ancien système si l'utilisateur n'a pas mis son BF%
-        return {"kcal": 2000, "protein_g": 100, "carbs_g": 200, "fat_g": 60}
-
-# ── Food Log ──────────────────────────────────────────────────────────────────
-
-MEAL_TYPES = {
-    "breakfast": "Petit-déjeuner",
-    "lunch":     "Déjeuner",
-    "dinner":    "Dîner",
-    "snack":     "Collation",
-    "other":     "Autre",
-}
-
+# ── 4. Entités du Journal (Logs) ──────────────────────────────────────────────
 
 @dataclass
-class FoodLogEntry:
-    log_date: str          # ISO date string
+class FoodLogEntry(NutritionalMixin):
+    log_date: str  # Format ISO (YYYY-MM-DD)
     label: str
     servings: float = 1.0
     meal_type: str = "other"
     recipe_id: Optional[int] = None
     id: Optional[int] = None
-    # Cached nutrition
-    kcal: Optional[float] = None
-    protein_g: Optional[float] = None
-    carbs_g: Optional[float] = None
-    fat_g: Optional[float] = None
-    sugars_g: Optional[float] = None
-    fiber_g: Optional[float] = None
-    saturated_g: Optional[float] = None
-    monounsat_g: Optional[float] = None
-    polyunsat_g: Optional[float] = None
-    sodium_mg: Optional[float] = None
-    calcium_mg: Optional[float] = None
-    iron_mg: Optional[float] = None
-    potassium_mg: Optional[float] = None
-    magnesium_mg: Optional[float] = None
-    zinc_mg: Optional[float] = None
-    vit_a_mcg: Optional[float] = None
-    vit_c_mg: Optional[float] = None
-    vit_d_mcg: Optional[float] = None
-    vit_b1_mg: Optional[float] = None
-    vit_b2_mg: Optional[float] = None
-    vit_b3_mg: Optional[float] = None
-    vit_b6_mg: Optional[float] = None
-    vit_b9_mcg: Optional[float] = None
-    vit_b12_mcg: Optional[float] = None
-    # USDA-enhanced
-    cholesterol_mg: Optional[float] = None
-    trans_fat_g:    Optional[float] = None
-    omega3_g:       Optional[float] = None
-    omega6_g:       Optional[float] = None
-    phosphorus_mg:  Optional[float] = None
-    selenium_mcg:   Optional[float] = None
-    copper_mg:      Optional[float] = None
-    manganese_mg:   Optional[float] = None
-    vit_e_mg:       Optional[float] = None
-    vit_k_mcg:      Optional[float] = None
 
     def nutrient_dict(self) -> dict:
         return {f: getattr(self, f) or 0.0 for f in NUTRIENT_FIELDS}

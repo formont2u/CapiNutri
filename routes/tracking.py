@@ -1,10 +1,14 @@
-import sqlite3
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from datetime import date, timedelta
-from models import MEAL_TYPES, ACTIVITY_LABELS, GOAL_LABELS,FoodLogEntry, NUTRIENT_FIELDS
+from constants import MEAL_TYPES, ACTIVITY_LABELS, GOAL_LABELS
+from models import FoodLogEntry, UserProfile
+from db import NUTRIENT_FIELDS
 import crud
-from db import get_connection
+from utils import _f
+from services.nutrition import calculate_smart_strategy, get_effective_goals, sum_day_nutrition, sum_nutrients
+from dataclasses import asdict
+
 
 tracking_bp = Blueprint('tracking', __name__)
 
@@ -19,7 +23,7 @@ def dashboard(date_str=None):
 
     entries  = crud.get_food_log_day(current_user.id, date_str)
     exercise = crud.get_exercise_day(current_user.id, date_str)
-    totals   = crud.sum_day_nutrition(entries)
+    totals   = sum_day_nutrition(entries)
     burned   = sum(e.kcal_burned for e in exercise)
 
     daily_goal = crud.get_daily_goal(current_user.id, date_str)
@@ -30,7 +34,7 @@ def dashboard(date_str=None):
             "carbs_g": daily_goal["goal_carbs_g"], "fat_g": daily_goal["goal_fat_g"],
         }
     else:
-        goals = profile.effective_goals()
+        goals = get_effective_goals(profile)
 
     by_meal = {mt: [] for mt in MEAL_TYPES}
     for e in entries:
@@ -85,12 +89,20 @@ def profile():
         )
         crud.save_profile(p, current_user.id)
         flash("Profil scientifique mis à jour avec succès !", "success")
-        return redirect(url_for("profile"))
+        return redirect(url_for("tracking.profile"))
         
     p = crud.get_profile(current_user.id)
-    eff = p.effective_goals()
-    return render_template("profile.html", profile=p, eff=eff, 
-                           activity_labels=ACTIVITY_LABELS, goal_labels=GOAL_LABELS)
+    
+    # On passe l'objet 'p' dans nos nouvelles fonctions
+    smart = calculate_smart_strategy(p)
+    eff = get_effective_goals(p)
+    
+    return render_template("profile.html", 
+                           profile=p, 
+                           smart=smart,  # 👈 Ajoute bien 'smart' ici pour ton HTML !
+                           eff=eff, 
+                           activity_labels=ACTIVITY_LABELS, 
+                           goal_labels=GOAL_LABELS)
 
 
 @tracking_bp.route("/log/food/add", methods=["POST"])
@@ -109,7 +121,9 @@ def api_add_food():
         recipe = crud.get_recipe(int(recipe_id))
         if recipe:
             scale = recipe.scale_factor(servings)
-            nutr = recipe.total_nutrition(scale) or {}
+            # ✅ On utilise le Mixin et le Cerveau !
+            ing_nutr = [i.as_nutrient_dict() for i in recipe.ingredients if i.has_nutrition]
+            nutr = sum_nutrients(ing_nutr, scale)
             label = recipe.name
     else:
         label = request.form.get("label", "").strip()
@@ -202,23 +216,19 @@ def log_goal_set():
 @tracking_bp.route("/api/log/delete/<int:entry_id>", methods=["POST"])
 @login_required
 def delete_log_entry(entry_id):
-    # 1. On récupère TOUTES les colonnes de l'entrée avant de supprimer
-    with get_connection() as conn:
-        # On utilise row_factory pour avoir un dictionnaire
-        conn.row_factory = sqlite3.Row 
-        row = conn.execute("SELECT * FROM food_log WHERE id=? AND user_id=?", 
-                           (entry_id, current_user.id)).fetchone()
+    # 1. Le chef d'orchestre demande la donnée au CRUD
+    entry = crud.get_food_log_entry(current_user.id, entry_id)
 
-    if not row:
+    if not entry:
         return jsonify({"ok": False}), 404
 
-    # 2. On supprime
+    # 2. Le chef d'orchestre demande au CRUD de supprimer
     success = crud.delete_food_log(current_user.id, entry_id)
     
     if success:
-        # On transforme la ligne SQL en dictionnaire Python
-        data = dict(row)
+        # 3. On transforme notre bel objet Python en dictionnaire pour le JavaScript
+        data = asdict(entry)
         data["ok"] = True
-        return jsonify(data) # Envoie tout : kcal, protein_g, fiber_g, vit_c_mg, etc.
+        return jsonify(data)
     
     return jsonify({"ok": False}), 400

@@ -1,8 +1,8 @@
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
 from flask_login import login_required
 import crud
-import nutrition_api
-from db import NUTRIENT_FIELDS, NUTRIENT_LABELS, MACRO_FIELDS, CARB_FIELDS, FAT_FIELDS, MICRO_FIELDS, VITAMIN_FIELDS, USDA_FIELDS
+from services import nutrition_api
+from constants import NUTRIENT_FIELDS, NUTRIENT_LABELS, MACRO_FIELDS, CARB_FIELDS, FAT_FIELDS, MICRO_FIELDS, VITAMIN_FIELDS, USDA_FIELDS
 
 library_bp = Blueprint('library', __name__)
 

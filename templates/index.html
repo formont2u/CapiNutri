@@ -2,48 +2,69 @@
 {% block title %}Recipe Book — Toutes les recettes{% endblock %}
 
 {% block content %}
-<div class="topbar">
+
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 pb-3 border-bottom gap-3">
   <div>
-    <h1>
+    <h2 class="mb-1 fw-bold" style="color: #2c3e50;">
       {% if active_category %}{{ active_category }}
       {% elif search %}Résultats pour "{{ search }}"
       {% else %}Toutes les recettes{% endif %}
-    </h1>
-    <div class="subtitle">{{ recipes|length }} recette{{ 's' if recipes|length != 1 }}</div>
+    </h2>
+    <span class="text-muted fw-bold">{{ recipes|length }} recette{{ 's' if recipes|length != 1 }}</span>
   </div>
-  <div class="d-flex gap-3 align-items-center">
-    <form method="get" action="{{ url_for('recipes.index') }}" class="d-flex gap-2 align-items-center">
+  
+  <div class="d-flex flex-wrap gap-2 align-items-center">
+    <form method="get" action="{{ url_for('recipes.index') }}" class="d-flex gap-2 align-items-center m-0">
       {% if active_category %}<input type="hidden" name="category" value="{{ active_category }}">{% endif %}
-      <div class="search-wrap">
-        <i class="bi bi-search"></i>
-        <input class="form-control" name="search" placeholder="Rechercher…" value="{{ search }}" style="width:220px">
+      
+      <div class="input-group input-group-sm shadow-sm rounded-pill overflow-hidden border bg-white" style="width: 240px;">
+        <span class="input-group-text bg-white border-0 text-muted ps-3"><i class="bi bi-search"></i></span>
+        <input class="form-control border-0 bg-white shadow-none" name="search" placeholder="Rechercher une recette…" value="{{ search }}">
       </div>
+      
       {% if search %}
-        <a href="{{ url_for('recipes.index', category=active_category) }}" class="btn btn-outline-secondary btn-sm">✕</a>
+        <a href="{{ url_for('recipes.index', category=active_category) }}" class="btn btn-sm btn-outline-danger rounded-pill px-2" title="Effacer la recherche">
+          <i class="bi bi-x-lg"></i>
+        </a>
       {% endif %}
     </form>
-    <a href="{{ url_for('recipes.new_recipe') }}" class="btn btn-accent d-flex align-items-center gap-2">
-      <i class="bi bi-plus-lg"></i> Nouvelle recette
+    
+    <a href="{{ url_for('recipes.new_recipe') }}" class="btn btn-dark rounded-pill shadow-sm fw-bold px-3 d-flex align-items-center gap-2">
+      <i class="bi bi-plus-lg"></i> <span class="d-none d-sm-inline">Nouvelle</span>
     </a>
   </div>
 </div>
 
 {% if recipes %}
-<div class="row g-3">
+<div class="row g-4 mb-5">
   {% for r in recipes %}
   <div class="col-md-6 col-lg-4">
-    <a href="{{ url_for('recipes.view_recipe', recipe_id=r.id) }}" class="recipe-card">
-      <div class="card-category"><i class="bi bi-tag"></i> {{ r.category or 'Sans catégorie' }}</div>
-      <h3>{{ r.name }}</h3>
-      <div class="meta">
-        <span><i class="bi bi-people"></i>
-          {{ r.servings|int if r.servings == r.servings|int else r.servings }} portion{{ 's' if r.servings != 1 }}
-        </span>
-        {% if r.total_kcal %}
-        <span class="kcal-chip"><i class="bi bi-fire"></i>
-          {{ r.total_kcal|int }} kcal
-        </span>
-        {% endif %}
+    <a href="{{ url_for('recipes.view_recipe', recipe_id=r.id) }}" class="text-decoration-none">
+      <div class="card h-100 border-0 shadow-sm rounded-4 recipe-card bg-white">
+        <div class="card-body p-4 d-flex flex-column">
+          
+          <div class="mb-2">
+            <span class="badge border text-muted px-2 py-1 rounded-pill fw-bold" style="background-color: #f8f9fa;">
+              <i class="bi bi-tag-fill" style="color: var(--accent);"></i> {{ r.category or 'Sans catégorie' }}
+            </span>
+          </div>
+          
+          <h5 class="card-title fw-bold text-dark mb-4">{{ r.name }}</h5>
+          
+          <div class="d-flex justify-content-between align-items-end mt-auto pt-2 border-top">
+            <span class="text-muted small fw-bold">
+              <i class="bi bi-people-fill text-secondary"></i> 
+              {{ r.servings|int if r.servings == r.servings|int else r.servings }} portion{{ 's' if r.servings != 1 }}
+            </span>
+            
+            {% if r.total_kcal %}
+            <span class="badge rounded-pill px-2 py-1 fw-bold" style="background-color: var(--accent-soft); color: var(--accent-dark);">
+              <i class="bi bi-fire"></i> {{ r.total_kcal|int }} kcal
+            </span>
+            {% endif %}
+          </div>
+          
+        </div>
       </div>
     </a>
   </div>
@@ -51,17 +72,25 @@
 </div>
 
 {% else %}
-<div class="empty-state">
-  <i class="bi bi-journal-text"></i>
+<div class="text-center py-5 my-5">
+  <div class="mb-4">
+    <i class="bi bi-journal-x text-muted" style="font-size: 4rem; opacity: 0.3;"></i>
+  </div>
+  
   {% if search %}
-    <p>Aucune recette pour <strong>"{{ search }}"</strong>.</p>
-    <a href="{{ url_for('recipes.index') }}" class="btn btn-accent">Effacer la recherche</a>
+    <h4 class="fw-bold text-dark">Aucun résultat</h4>
+    <p class="text-muted">Nous n'avons trouvé aucune recette pour <strong>"{{ search }}"</strong>.</p>
+    <a href="{{ url_for('recipes.index') }}" class="btn btn-outline-dark rounded-pill mt-2 fw-bold px-4">
+      Effacer la recherche
+    </a>
   {% else %}
-    <p>Aucune recette pour l'instant. Ajoutez la première !</p>
-    <a href="{{ url_for('recipes.new_recipe') }}" class="btn btn-accent">
-      <i class="bi bi-plus-lg"></i> Ajouter une recette
+    <h4 class="fw-bold text-dark">Votre carnet est vide</h4>
+    <p class="text-muted">Il est temps d'ajouter votre première création culinaire !</p>
+    <a href="{{ url_for('recipes.new_recipe') }}" class="btn btn-accent rounded-pill mt-2 fw-bold px-4 shadow-sm">
+      <i class="bi bi-plus-lg"></i> Créer une recette
     </a>
   {% endif %}
 </div>
 {% endif %}
+
 {% endblock %}

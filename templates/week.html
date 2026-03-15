@@ -1,121 +1,155 @@
 {% extends "base.html" %}
-{% block title %}Semaine du {{ start_label }}{% endblock %}
+{% block title %}Statistiques Semaine du {{ start_label }} — Capynutri{% endblock %}
 
 {% block content %}
-<div class="topbar">
+
+<style>
+  .css-chart { height: 200px; display: flex; align-items: flex-end; gap: 8px; position: relative; padding-bottom: 20px; border-bottom: 2px solid #f0f3f5; }
+  .css-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; position: relative; z-index: 2; }
+  .css-bar { width: 100%; max-width: 40px; background-color: var(--accent); border-radius: 6px 6px 0 0; min-height: 4px; transition: height 0.5s ease-out, background-color 0.3s; position: relative; cursor: pointer; }
+  .css-bar:hover { filter: brightness(0.9); }
+  .css-bar.over { background-color: #e53935; }
+  
+  .css-bar-val { position: absolute; top: -25px; left: 50%; transform: translateX(-50%); font-size: 0.75rem; font-weight: 700; color: #6c757d; }
+  .css-bar-label { position: absolute; bottom: -24px; font-size: 0.8rem; font-weight: 600; color: #a0a0b0; text-decoration: none; }
+  .css-bar-label:hover { color: var(--accent); }
+  .css-bar-label.today { color: var(--accent); font-weight: 800; }
+  
+  .css-burn { position: absolute; bottom: 8px; font-size: 0.65rem; color: #fff; font-weight: 700; display: flex; align-items: center; gap: 2px; }
+  
+  .css-goal-line { position: absolute; left: 0; right: 0; height: 2px; border-top: 2px dashed #a0a0b0; z-index: 1; opacity: 0.5; }
+  .css-goal-label { position: absolute; right: 0; font-size: 0.75rem; color: #6c757d; font-weight: 700; transform: translateY(-100%); padding-bottom: 4px; }
+</style>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 pb-2 border-bottom gap-3">
   <div>
-    <h1>Vue Semaine</h1>
-    <div class="subtitle">{{ start_label }}</div>
+    <h2 class="mb-1 fw-bold text-dark"><i class="bi bi-bar-chart-fill text-accent"></i> Bilan Hebdomadaire</h2>
+    <span class="text-muted fw-bold">Semaine du {{ start_label }}</span>
   </div>
+  
   <div class="d-flex gap-2 align-items-center">
-    <a href="{{ url_for('planning.week_view', start=prev_week) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-chevron-left"></i></a>
-    <a href="{{ url_for('planning.week_view') }}" class="btn btn-sm btn-outline-secondary">Cette semaine</a>
-    <a href="{{ url_for('planning.week_view', start=next_week) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-chevron-right"></i></a>
+    <a href="{{ url_for('planning.week_stats', start=prev_week) }}" class="btn btn-light rounded-circle shadow-sm"><i class="bi bi-chevron-left"></i></a>
+    <a href="{{ url_for('planning.week_stats') }}" class="btn btn-outline-dark rounded-pill fw-bold shadow-sm px-3">Cette semaine</a>
+    <a href="{{ url_for('planning.week_stats', start=next_week) }}" class="btn btn-light rounded-circle shadow-sm"><i class="bi bi-chevron-right"></i></a>
   </div>
 </div>
 
-<!-- Weekly summary stats -->
 {% set total_kcal = days | sum(attribute='kcal') %}
 {% set days_logged = days | selectattr('kcal', '>', 0) | list | length %}
 {% set avg_kcal = (total_kcal / days_logged)|round(0) if days_logged > 0 else 0 %}
+{% set daily_goal = goals.kcal or 2000 %}
 
 <div class="row g-3 mb-4">
-  <div class="col-md-3"><div class="week-stat-card">
-    <div class="week-stat-val">{{ total_kcal|int }}</div>
-    <div class="week-stat-label">kcal cette semaine</div>
-  </div></div>
-  <div class="col-md-3"><div class="week-stat-card">
-    <div class="week-stat-val">{{ avg_kcal|int }}</div>
-    <div class="week-stat-label">kcal / jour (moy.)</div>
-  </div></div>
-  <div class="col-md-3"><div class="week-stat-card">
-    <div class="week-stat-val">{{ days_logged }}</div>
-    <div class="week-stat-label">jours loggés / 7</div>
-  </div></div>
-  <div class="col-md-3"><div class="week-stat-card">
-    <div class="week-stat-val" style="color:var(--accent)">{{ goals.kcal|int }}</div>
-    <div class="week-stat-label">objectif kcal / jour</div>
-  </div></div>
+  {% for val, label, color, icon in [
+    (total_kcal|int, 'kcal cette semaine', 'dark', 'bi-calculator'),
+    (avg_kcal|int, 'kcal / jour (moy.)', 'primary', 'bi-speedometer2'),
+    (days_logged ~ ' / 7', 'jours loggés', 'success', 'bi-calendar-check'),
+    (daily_goal|int, 'objectif kcal / jour', 'accent', 'bi-bullseye')
+  ] %}
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+      <div class="card-body text-center py-4">
+        <i class="bi {{ icon }} fs-4 mb-2 text-{{ 'muted' if color == 'dark' else color }}" style="opacity: 0.5;"></i>
+        <h3 class="fw-bold mb-1 {{ 'text-' ~ color }}">{{ val }}</h3>
+        <span class="small text-muted text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.5px;">{{ label }}</span>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
 </div>
 
-<!-- Calorie chart (pure CSS bars) -->
-<div class="panel mb-4">
-  <div class="panel-title"><i class="bi bi-bar-chart-line"></i> Calories par jour</div>
-  <div class="week-chart">
-    {% for day in days %}
-    {% set pct = [(day.kcal / goals.kcal * 100), 120]|min if goals.kcal > 0 else 0 %}
-    {% set over = day.kcal > goals.kcal %}
-    <div class="week-bar-col">
-      <div class="week-bar-wrap">
-        <div class="week-bar {{ 'week-bar-over' if over }}"
-             style="height:{{ pct }}%"
-             title="{{ day.kcal|int }} kcal">
-          {% if day.kcal > 0 %}<span class="week-bar-val">{{ day.kcal|int }}</span>{% endif %}
+<div class="card border-0 shadow-sm rounded-4 mb-4 bg-white">
+  <div class="card-body p-4">
+    <h5 class="fw-bold text-secondary mb-4"><i class="bi bi-bar-chart-steps text-info"></i> Calories par jour</h5>
+    
+    <div class="css-chart mt-5">
+      {% set goal_line_pct = 80 %} <div class="css-goal-line" style="bottom: {{ goal_line_pct }}%;"></div>
+      <div class="css-goal-label" style="bottom: {{ goal_line_pct }}%;">{{ daily_goal|int }} kcal</div>
+      
+      {% for day in days %}
+        {% set is_over = day.kcal > daily_goal %}
+        {% set pct = [(day.kcal / daily_goal * goal_line_pct), 100]|min if daily_goal > 0 else 0 %}
+        
+        <div class="css-bar-col">
+          <div class="css-bar shadow-sm {{ 'over' if is_over }}" style="height: {{ pct }}%;" title="{{ day.kcal|int }} kcal">
+            {% if day.kcal > 0 %}
+              <span class="css-bar-val">{{ day.kcal|int }}</span>
+            {% endif %}
+            
+            {% if day.burned > 0 %}
+              <div class="css-burn w-100 justify-content-center" title="{{ day.burned|int }} brûlées"><i class="bi bi-fire text-warning"></i></div>
+            {% endif %}
+          </div>
+          
+          <a href="{{ url_for('tracking.dashboard', date_str=day.date) }}" class="css-bar-label {{ 'today' if day.date == today() }}">
+            {{ day.label[:3] }}
+          </a>
         </div>
-        <div class="week-goal-line" style="bottom:{{ [(goals.kcal / goals.kcal * 100), 100]|min }}%"></div>
-      </div>
-      <a href="{{ url_for('tracking.dashboard', date_str=day.date) }}" class="week-day-label {{ 'today-label' if day.date == today() }}">
-        {{ day.label }}
-      </a>
-      {% if day.burned > 0 %}
-      <div class="week-burn"><i class="bi bi-lightning-fill"></i>{{ day.burned|int }}</div>
-      {% endif %}
+      {% endfor %}
     </div>
-    {% endfor %}
-    <!-- Goal line label -->
-    <div class="week-goal-label">{{ goals.kcal|int }} kcal</div>
   </div>
 </div>
 
-<!-- Macro table -->
-<div class="panel">
-  <div class="panel-title"><i class="bi bi-table"></i> Détail par jour</div>
-  <table class="week-table">
-    <thead>
-      <tr>
-        <th>Jour</th>
-        <th>Calories</th>
-        <th style="color:#4a90e2">Protéines</th>
-        <th style="color:#f5a623">Glucides</th>
-        <th style="color:#e8571a">Lipides</th>
-        <th>Net</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for day in days %}
-      <tr class="{{ 'today-row' if day.date == today() }}">
-        <td>
-          <a href="{{ url_for('tracking.dashboard', date_str=day.date) }}" class="text-decoration-none fw-semibold">
-            {{ day.label }}
-          </a>
-        </td>
-        <td>
-          {% if day.kcal > 0 %}
-          <span class="week-kcal-badge {{ 'over' if day.kcal > goals.kcal }}">{{ day.kcal|int }}</span>
-          {% else %}<span style="color:#ddd">—</span>{% endif %}
-        </td>
-        <td>{% if day.protein_g > 0 %}{{ day.protein_g }}g{% else %}<span style="color:#ddd">—</span>{% endif %}</td>
-        <td>{% if day.carbs_g > 0 %}{{ day.carbs_g }}g{% else %}<span style="color:#ddd">—</span>{% endif %}</td>
-        <td>{% if day.fat_g > 0 %}{{ day.fat_g }}g{% else %}<span style="color:#ddd">—</span>{% endif %}</td>
-        <td>
-          {% if day.kcal > 0 %}
-          {% set net = day.kcal - day.burned %}
-          <span style="color:{{ '#e53935' if net > goals.kcal else '#4caf50' }}">{{ net|int }}</span>
-          {% else %}<span style="color:#ddd">—</span>{% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-    <tfoot>
-      <tr>
-        <td><strong>Total</strong></td>
-        <td><strong>{{ total_kcal|int }}</strong></td>
-        <td>{{ days | sum(attribute='protein_g') | round(1) }}g</td>
-        <td>{{ days | sum(attribute='carbs_g') | round(1) }}g</td>
-        <td>{{ days | sum(attribute='fat_g') | round(1) }}g</td>
-        <td></td>
-      </tr>
-    </tfoot>
-  </table>
+<div class="card border-0 shadow-sm rounded-4 bg-white">
+  <div class="card-body p-4">
+    <h5 class="fw-bold text-secondary mb-3"><i class="bi bi-table text-primary"></i> Détail par jour</h5>
+    
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="text-uppercase small text-muted" style="letter-spacing: 0.5px;">
+          <tr>
+            <th class="border-0">Jour</th>
+            <th class="border-0">Calories</th>
+            <th class="border-0" style="color:#4a90e2">Protéines</th>
+            <th class="border-0" style="color:#f5a623">Glucides</th>
+            <th class="border-0" style="color:#e8571a">Lipides</th>
+            <th class="border-0 text-end">Net</th>
+          </tr>
+        </thead>
+        <tbody class="border-top">
+          {% for day in days %}
+          <tr class="{{ 'bg-light' if day.date == today() else '' }}">
+            <td>
+              <a href="{{ url_for('tracking.dashboard', date_str=day.date) }}" class="text-decoration-none fw-bold {{ 'text-accent' if day.date == today() else 'text-dark' }}">
+                {{ day.label }}
+              </a>
+            </td>
+            <td>
+              {% if day.kcal > 0 %}
+                <span class="badge {{ 'bg-danger' if day.kcal > daily_goal else 'bg-success' }} bg-opacity-10 {{ 'text-danger' if day.kcal > daily_goal else 'text-success' }} px-2 py-1 fs-6">
+                  {{ day.kcal|int }}
+                </span>
+              {% else %}
+                <span class="text-muted opacity-50">—</span>
+              {% endif %}
+            </td>
+            <td class="fw-bold text-muted">{% if day.protein_g > 0 %}{{ day.protein_g }}g{% else %}<span class="opacity-50">—</span>{% endif %}</td>
+            <td class="fw-bold text-muted">{% if day.carbs_g > 0 %}{{ day.carbs_g }}g{% else %}<span class="opacity-50">—</span>{% endif %}</td>
+            <td class="fw-bold text-muted">{% if day.fat_g > 0 %}{{ day.fat_g }}g{% else %}<span class="opacity-50">—</span>{% endif %}</td>
+            <td class="text-end fw-bold">
+              {% if day.kcal > 0 %}
+                {% set net = day.kcal - day.burned %}
+                <span class="{{ 'text-danger' if net > daily_goal else 'text-success' }}">{{ net|int }}</span>
+              {% else %}
+                <span class="text-muted opacity-50">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot class="border-top border-2">
+          <tr class="fw-bold fs-6">
+            <td class="py-3 text-dark">Total</td>
+            <td class="py-3 text-dark">{{ total_kcal|int }}</td>
+            <td class="py-3" style="color:#4a90e2">{{ days | sum(attribute='protein_g') | round(1) }}g</td>
+            <td class="py-3" style="color:#f5a623">{{ days | sum(attribute='carbs_g') | round(1) }}g</td>
+            <td class="py-3" style="color:#e8571a">{{ days | sum(attribute='fat_g') | round(1) }}g</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
 </div>
+
 {% endblock %}

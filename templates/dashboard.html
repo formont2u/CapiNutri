@@ -3,367 +3,344 @@
 
 {% block content %}
 
-<!-- Date nav -->
-<div class="date-nav">
-  <a href="{{ url_for('tracking.dashboard', date_str=prev_day) }}" class="date-arrow"><i class="bi bi-chevron-left"></i></a>
-  <div class="date-center">
-    <div class="date-main">{{ d.strftime('%A %d %B %Y')|capitalize }}</div>
-    {% if date_str == today() %}<div class="date-today-badge">Aujourd'hui</div>{% endif %}
+{% macro nutrient_progress(field, val, goal, color_hex, is_micro=false) %}
+  {% set label, unit = NUTRIENT_LABELS[field] %}
+  {% set pct = [(val / goal * 100) if goal else 0, 100]|min %}
+  <div class="mb-3">
+    <div class="d-flex justify-content-between align-items-end mb-1">
+      <span class="small fw-bold text-secondary">{{ label }}</span>
+      <span class="small fw-bold">
+        <span style="color: {{ color_hex }}">{{ val|round(1) }}</span> 
+        <span class="text-muted fw-normal">/ {{ goal|int }}{{ unit }}</span>
+      </span>
+    </div>
+    <div class="progress" style="height: 8px; border-radius: 10px; background-color: #f0f3f5;">
+      {% set bar_color = '#e53935' if (val > goal and not is_micro) else color_hex %}
+      <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" 
+           style="width: {{ pct }}%; background-color: {{ bar_color }};"></div>
+    </div>
   </div>
-  <a href="{{ url_for('tracking.dashboard', date_str=next_day) }}" class="date-arrow"><i class="bi bi-chevron-right"></i></a>
-  <a href="{{ url_for('planning.week_view') }}" class="btn btn-sm btn-outline-secondary ms-3">
-    <i class="bi bi-calendar3-week"></i> Semaine
+{% endmacro %}
+
+
+<div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
+  <div class="d-flex align-items-center gap-3">
+    <a href="{{ url_for('tracking.dashboard', date_str=prev_day) }}" class="btn btn-light rounded-circle shadow-sm"><i class="bi bi-chevron-left"></i></a>
+    <div class="text-center">
+      <h4 class="mb-0 fw-bold" style="color: #2c3e50;">{{ d.strftime('%A %d %b %Y')|capitalize }}</h4>
+      {% if date_str == today() %}
+        <span class="badge bg-danger rounded-pill mt-1">Aujourd'hui</span>
+      {% endif %}
+    </div>
+    <a href="{{ url_for('tracking.dashboard', date_str=next_day) }}" class="btn btn-light rounded-circle shadow-sm"><i class="bi bi-chevron-right"></i></a>
+  </div>
+  <a href="{{ url_for('planning.week_view') }}" class="btn btn-outline-dark rounded-pill shadow-sm">
+    <i class="bi bi-calendar3-week"></i> Vue Semaine
   </a>
 </div>
 
-<!-- ── Top row: calorie ring + macros ── -->
-{% set net_kcal = (totals.kcal or 0) - burned %}
+{% if smart and smart.training and smart.rest %}
+<div class="panel shadow-sm border-0 rounded-4 p-3 mb-4 d-flex justify-content-center gap-2 bg-light">
+  {% for mode, data, icon, color, active_cond in [
+      ('Repos', smart.rest, 'bi-cup-hot-fill', 'secondary', daily_goal and daily_goal.goal_kcal == smart.rest.kcal),
+      ('Lissé', none, 'bi-sliders', 'info', not daily_goal),
+      ('Sport', smart.training, 'bi-lightning-charge-fill', 'warning', daily_goal and daily_goal.goal_kcal == smart.training.kcal)
+  ] %}
+  <form method="post" action="{{ url_for('tracking.log_goal_set') }}">
+    <input type="hidden" name="date_str" value="{{ date_str }}">
+    {% if data %}
+      <input type="hidden" name="goal_kcal" value="{{ data.kcal }}">
+      <input type="hidden" name="goal_protein_g" value="{{ data.protein_g }}">
+      <input type="hidden" name="goal_carbs_g" value="{{ data.carbs_g }}">
+      <input type="hidden" name="goal_fat_g" value="{{ data.fat_g }}">
+    {% else %}
+      <input type="hidden" name="goal_kcal" value=""> 
+    {% endif %}
+    <button type="submit" class="btn rounded-pill px-4 fw-bold {{ 'btn-' ~ color ~ ' shadow text-white' if active_cond else 'btn-outline-' ~ color }}">
+      <i class="bi {{ icon }}"></i> {{ mode }}
+    </button>
+  </form>
+  {% endfor %}
+</div>
+{% endif %}
+
 {% set goal_kcal = goals.kcal or 2000 %}
+{% set net_kcal = (totals.kcal or 0) - burned %}
 {% set pct_kcal = [((totals.kcal or 0) / goal_kcal * 100), 100]|min %}
+{% set remaining = goal_kcal - (totals.kcal or 0) + burned %}
 
-<div class="dash-top row g-3 mb-3">
-
-  <!-- Calorie ring -->
-  <div class="col-md-4">
-    <div class="panel d-flex flex-column align-items-center py-4">
-      <div class="kcal-ring-wrap">
-        <svg class="kcal-ring" viewBox="0 0 120 120">
-          <circle class="ring-bg"  cx="60" cy="60" r="50" />
-          <circle id="kcal-ring-fill" class="ring-fill {{ 'ring-over' if (totals.kcal or 0) > goal_kcal }}"
-                  cx="60" cy="60" r="50"
-                  stroke-dasharray="{{ pct_kcal * 3.14159 }} 314.159"
-                  stroke-dashoffset="0" />
+<div class="row g-4 mb-4">
+  <div class="col-md-5 col-lg-4">
+    <div class="panel border-0 shadow-sm rounded-4 h-100 d-flex flex-column align-items-center justify-content-center py-4 text-center">
+      <h5 class="fw-bold text-secondary mb-3"><i class="bi bi-bullseye"></i> Calories</h5>
+      
+      <div class="kcal-ring-wrap" style="position: relative; width: 140px; height: 140px;">
+        <svg class="kcal-ring" viewBox="0 0 120 120" style="width: 100%; height: 100%; transform: rotate(-90deg);">
+          <circle cx="60" cy="60" r="50" fill="none" stroke="#f0f3f5" stroke-width="10" />
+          <circle cx="60" cy="60" r="50" fill="none" stroke="{{ '#e53935' if (totals.kcal or 0) > goal_kcal else '#ff6b3d' }}" stroke-width="10" 
+                  stroke-dasharray="{{ pct_kcal * 3.14159 }} 314.159" stroke-linecap="round" style="transition: stroke-dasharray 1s ease-out;" />
         </svg>
-        <div class="ring-center">
-          <div class="ring-num" id="total-kcal">{{ (totals.kcal or 0)|int }}</div>
-          <div class="ring-unit">kcal</div>
-          <div class="ring-goal" id="goal-kcal">/ {{ goal_kcal|int }}</div>
+        <div class="ring-center" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+          <h2 class="mb-0 fw-bold" style="color: #2c3e50; line-height: 1;">{{ (totals.kcal or 0)|int }}</h2>
+          <small class="text-muted">/ {{ goal_kcal|int }} kcal</small>
         </div>
       </div>
+
       {% if burned > 0 %}
-      <div class="burn-badge mt-2">
-        <i class="bi bi-lightning-fill"></i> −{{ burned|int }} kcal brûlées
+      <div class="badge bg-warning text-dark mt-3 px-3 py-2 rounded-pill shadow-sm">
+        <i class="bi bi-fire"></i> {{ burned|int }} kcal brûlées
       </div>
-      <div class="net-kcal mt-1">Net : {{ net_kcal|int }} kcal</div>
+      <div class="mt-1 small fw-bold text-muted">Net : {{ net_kcal|int }} kcal</div>
       {% endif %}
-      <div class="remaining-label mt-2">
-          {% set remaining = goal_kcal - (totals.kcal or 0) + burned %}
-          <span id="remaining-val" style="color:{{ '#4caf50' if remaining > 0 else '#e53935' }}">
-              {% if remaining > 0 %}
-                  {{ remaining|int }} kcal restantes
-              {% else %}
-                  {{ (remaining * -1)|int }} kcal de trop
-              {% endif %}
-          </span>
+      
+      <div class="mt-3 fw-bold {{ 'text-success' if remaining > 0 else 'text-danger' }}">
+        {% if remaining > 0 %}
+          {{ remaining|int }} kcal restantes
+        {% else %}
+          Dépassement de {{ (remaining * -1)|int }} kcal
+        {% endif %}
       </div>
     </div>
   </div>
 
-  <!-- Macro bars -->
-  <div class="col-md-8">
-    <div class="panel h-100">
-      <div class="panel-title"><i class="bi bi-bar-chart-fill"></i> Macronutriments</div>
-      {% for field, color in [('protein_g','#4a90e2'),('carbs_g','#f5a623'),('fat_g','#e8571a')] %}
-      {% set label = NUTRIENT_LABELS[field][0] %}
-      {% set unit  = NUTRIENT_LABELS[field][1] %}
-      {% set val   = (totals[field] or 0) %}
-      {% set goal  = (goals.get(field) or RDI[field]) %}
-      {% set pct   = [(val / goal * 100), 100]|min %}
-      <div class="dash-macro-row">
-        <div class="dash-macro-label">{{ label }}</div>
-        <div class="dash-macro-bar-wrap">
-          <div class="dash-macro-bar" id="bar-{{ field }}" style="width:{{ pct }}%;background:{{ color }};
-               {{ 'opacity:.6;background:#e53935' if val > goal }}"></div>
-        </div>
-        <div class="dash-macro-val">
-          <span style="color:{{ color }};font-weight:700"><span id="total-{{ field }}">{{ val|round(1) }}</span>{{ unit }}</span>
-          <span style="color:#aaa"> / <span id="goal-{{ field }}">{{ goal|int }}</span>{{ unit }}</span>
-        </div>
-      </div>
+  <div class="col-md-7 col-lg-8">
+    <div class="panel border-0 shadow-sm rounded-4 h-100 p-4">
+      <h5 class="fw-bold text-secondary mb-4"><i class="bi bi-bar-chart-fill text-primary"></i> Macronutriments</h5>
+      
+      {% for field, color in [('protein_g', '#4a90e2'), ('carbs_g', '#f5a623'), ('fat_g', '#e8571a')] %}
+        {{ nutrient_progress(field, (totals[field] or 0), (goals.get(field) or RDI[field]), color) }}
       {% endfor %}
 
-      <!-- Secondary nutrients -->
-      <div class="secondary-nutr mt-3">
-        {% for field in ['sugars_g','fiber_g','saturated_g','sodium_mg'] %}
-        {% set val  = (totals.get(field) or 0) %}
-        {% set rdi  = RDI.get(field, 1) %}
-        {% set pct  = [(val / rdi * 100), 100]|min if rdi else 0 %}
-        {% set label, unit = NUTRIENT_LABELS[field] %}
-        <div class="sec-nutr-item">
-          <div class="sec-nutr-label">{{ label }}</div>
-          <div class="sec-nutr-bar-wrap">
-            <div class="sec-nutr-bar" id="bar-{{ field }}" style="width:{{ pct }}%;
-                 {{ 'background:#e53935' if val > rdi else 'background:#aaa' }}"></div>
+      <hr class="text-muted my-4">
+      
+      <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-info-circle"></i> Secondaires</h6>
+      <div class="row g-3">
+        {% for field in ['sugars_g', 'fiber_g', 'saturated_g', 'sodium_mg'] %}
+          <div class="col-sm-6">
+            {{ nutrient_progress(field, (totals.get(field) or 0), RDI.get(field, 1), '#95a5a6') }}
           </div>
-          <div class="sec-nutr-val">
-            <span id="total-{{ field }}">{{ val|round(1) }}</span><span>{{ unit }}</span>
-            <span id="goal-{{ field }}" style="display:none">{{ rdi }}</span>
-        </div>
-        </div>
         {% endfor %}
       </div>
     </div>
   </div>
-
 </div>
 
-<div class="row g-3 mb-3">
+<div class="row g-4 mb-4">
   <div class="col-12">
-    <div class="panel">
-      <div class="panel-title"><i class="bi bi-graph-up text-accent"></i> Tendance des 7 derniers jours</div>
-      <div style="position: relative; height: 200px; width: 100%;">
+    <div class="panel border-0 shadow-sm rounded-4 p-4">
+      <h5 class="fw-bold text-secondary mb-3"><i class="bi bi-graph-up text-accent"></i> Tendance des 7 derniers jours</h5>
+      <div style="position: relative; height: 220px; width: 100%;">
         <canvas id="weeklyChart"></canvas>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ── Food log + Add food + Exercise row ── -->
-<div class="row g-3">
+<div class="row g-4">
 
-  <!-- Food log by meal -->
   <div class="col-lg-7">
-    <div class="panel">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <div class="panel-title mb-0"><i class="bi bi-journal-text"></i> Journal alimentaire</div>
-        <button class="btn btn-sm btn-accent" data-bs-toggle="collapse" data-bs-target="#addFoodPanel">
+    <div class="panel border-0 shadow-sm rounded-4 p-4 h-100">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h5 class="fw-bold text-secondary mb-0"><i class="bi bi-journal-text text-success"></i> Journal alimentaire</h5>
+        <button class="btn btn-sm btn-dark rounded-pill px-3 shadow-sm" data-bs-toggle="collapse" data-bs-target="#addFoodPanel">
           <i class="bi bi-plus-lg"></i> Ajouter
         </button>
       </div>
 
-      <!-- Add food form (collapsible) -->
-      <div class="collapse mb-3" id="addFoodPanel">
-        <div class="add-food-box">
+      <div class="collapse mb-4" id="addFoodPanel">
+        <div class="card card-body bg-light border-0 rounded-4 shadow-sm">
           <form method="post" action="{{ url_for('tracking.api_add_food') }}" id="addFoodForm">
             <input type="hidden" name="date_str" value="{{ date_str }}">
-            <div class="row g-2 mb-2">
+            
+            <div class="row g-3 mb-3">
               <div class="col-6">
-                <label class="form-label-sm">Repas</label>
-                <select class="form-select form-select-sm" name="meal_type">
+                <label class="form-label small fw-bold text-muted">Repas</label>
+                <select class="form-select border-0 shadow-sm" name="meal_type">
                   {% for key, label in MEAL_TYPES.items() %}
-                  <option value="{{ key }}">{{ label }}</option>
+                    <option value="{{ key }}">{{ label }}</option>
                   {% endfor %}
                 </select>
               </div>
               <div class="col-6">
-                <label class="form-label-sm">Portions</label>
-                <input class="form-control form-control-sm" name="servings" type="number" min="0.5" step="0.5" value="1">
+                <label class="form-label small fw-bold text-muted">Portions</label>
+                <input class="form-control border-0 shadow-sm" name="servings" type="number" min="0.5" step="0.5" value="1">
               </div>
             </div>
 
-            <!-- Tabs: recipe vs manual -->
-            <div class="add-tabs">
-              <button type="button" class="add-tab active" data-tab="recipe">Depuis une recette</button>
-              <button type="button" class="add-tab" data-tab="manual">Ingrédient / aliment</button>
-            </div>
+            <ul class="nav nav-pills mb-3 nav-fill bg-white p-1 rounded-pill shadow-sm" id="addFoodTabs" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link active rounded-pill fw-bold" id="recipe-tab" data-bs-toggle="pill" data-bs-target="#tabRecipe" type="button">Recette</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link rounded-pill fw-bold" id="manual-tab" data-bs-toggle="pill" data-bs-target="#tabManual" type="button">Manuel</button>
+              </li>
+            </ul>
 
-            <div class="add-tab-content active" id="tabRecipe">
-              <select class="form-select form-select-sm" name="recipe_id" id="recipeSelect">
-                <option value="">-- Choisir une recette --</option>
-                {% for r in recipes %}
-                <option value="{{ r.id }}" data-kcal="{{ r.total_kcal or '' }}">
-                  {{ r.name }} {% if r.total_kcal %}({{ r.total_kcal|int }} kcal){% endif %}
-                </option>
-                {% endfor %}
-              </select>
-              <div class="nutr-preview mt-2" id="recipeNutrPreview" style="display:none"></div>
-            </div>
-
-            <div class="add-tab-content" id="tabManual">
-              <input class="form-control form-control-sm mb-2" name="label" placeholder="ex. Yaourt grec 0%, 2 oeufs…">
-              <div class="manual-nutr-grid">
-                {% for field in ['kcal','protein_g','carbs_g','fat_g'] %}
-                {% set label, unit = NUTRIENT_LABELS[field] %}
-                <div>
-                  <label class="form-label-sm">{{ label }}</label>
-                  <div class="input-group input-group-sm">
-                    <input class="form-control" name="nutr_{{ field }}" type="number" min="0" step="any" placeholder="0">
-                    <span class="input-group-text">{{ unit }}</span>
-                  </div>
-                </div>
-                {% endfor %}
+            <div class="tab-content">
+              <div class="tab-pane fade show active" id="tabRecipe">
+                <select class="form-select border-0 shadow-sm" name="recipe_id" id="recipeSelect">
+                  <option value="">-- Choisir une recette --</option>
+                  {% for r in recipes %}
+                    <option value="{{ r.id }}">{{ r.name }} {% if r.total_kcal %}({{ r.total_kcal|int }} kcal){% endif %}</option>
+                  {% endfor %}
+                </select>
               </div>
-              <details class="mt-2">
-                <summary style="font-size:.75rem;color:#888;cursor:pointer">Détails nutritionnels avancés</summary>
-                <div class="manual-nutr-grid mt-2">
-                  {% for field in ['sugars_g','fiber_g','saturated_g','sodium_mg','calcium_mg','iron_mg','vit_c_mg','vit_d_mcg'] %}
-                  {% set label, unit = NUTRIENT_LABELS[field] %}
-                  <div>
-                    <label class="form-label-sm">{{ label }}</label>
-                    <div class="input-group input-group-sm">
-                      <input class="form-control" name="nutr_{{ field }}" type="number" min="0" step="any" placeholder="0">
-                      <span class="input-group-text">{{ unit }}</span>
+              
+              <div class="tab-pane fade" id="tabManual">
+                <input class="form-control border-0 shadow-sm mb-3" name="label" placeholder="ex. Yaourt grec 0%...">
+                <div class="row g-2">
+                  {% for field in ['kcal', 'protein_g', 'carbs_g', 'fat_g'] %}
+                    {% set label, unit = NUTRIENT_LABELS[field] %}
+                    <div class="col-6">
+                      <div class="input-group input-group-sm shadow-sm">
+                        <span class="input-group-text bg-white border-0 text-muted" style="width: 40px;">{{ label[:3] }}</span>
+                        <input class="form-control border-0" name="nutr_{{ field }}" type="number" min="0" step="any" placeholder="0">
+                      </div>
                     </div>
-                  </div>
                   {% endfor %}
                 </div>
-              </details>
+              </div>
             </div>
 
-            <button type="submit" class="btn btn-accent btn-sm w-100 mt-3">
-              <i class="bi bi-plus-circle"></i> Ajouter au journal
+            <button type="submit" class="btn btn-primary w-100 mt-3 rounded-pill fw-bold shadow-sm" style="background-color: #ff6b3d; border: none;">
+              <i class="bi bi-save"></i> Enregistrer l'aliment
             </button>
           </form>
         </div>
       </div>
 
-      <!-- Meal sections -->
       {% set shown_any = false %}
       {% for mt_key, mt_label in MEAL_TYPES.items() %}
-      {% set meal_entries = by_meal.get(mt_key, []) %}
-      {% if meal_entries %}
-      {% set shown_any = true %}
-      <div class="meal-section">
-        <div class="meal-title">{{ mt_label }}</div>
-        {% for e in meal_entries %}
-        <div class="log-entry" id="log-row-{{ e.id }}">
-          <div class="log-entry-name">
-            {{ e.label }}
-            {% if e.servings != 1 %}<span class="log-servings">× {{ e.servings }}</span>{% endif %}
+        {% set meal_entries = by_meal.get(mt_key, []) %}
+        {% if meal_entries %}
+          {% set shown_any = true %}
+          <div class="mb-4">
+            <h6 class="fw-bold text-dark border-bottom pb-2 mb-3"><i class="bi bi-clock text-muted"></i> {{ mt_label }}</h6>
+            <div class="list-group list-group-flush">
+              {% for e in meal_entries %}
+                <div class="list-group-item d-flex justify-content-between align-items-center border-0 bg-light rounded-3 mb-2 shadow-sm" id="log-row-{{ e.id }}">
+                  <div>
+                    <span class="fw-bold">{{ e.label }}</span>
+                    {% if e.servings != 1 %}<span class="badge bg-secondary ms-2">× {{ e.servings }}</span>{% endif %}
+                  </div>
+                  <div class="d-flex align-items-center gap-3">
+                    <span class="fw-bold text-accent">{% if e.kcal %}{{ e.kcal|int }} kcal{% endif %}</span>
+                    <button class="btn btn-sm btn-outline-danger border-0" onclick="deleteEntry({{ e.id }})" title="Supprimer">
+                      <i class="bi bi-trash-fill"></i>
+                    </button>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
           </div>
-          
-          <div class="d-flex align-items-center gap-2">
-            <div class="log-entry-kcal">{% if e.kcal %}{{ e.kcal|int }} kcal{% endif %}</div>
-            
-            <button class="btn btn-sm text-danger p-0 border-0" 
-                    onclick="deleteEntry({{ e.id }})" 
-                    style="background: transparent;"
-                    title="Supprimer">
-                <i class="bi bi-x-circle-fill"></i>
-            </button>
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-      {% endif %}
+        {% endif %}
       {% endfor %}
 
-      {% if not entries %}
-      <div class="empty-log">
-        <i class="bi bi-egg-fried"></i>
-        <p>Rien de loggé pour cette journée.</p>
-      </div>
+      {% if not shown_any %}
+        <div class="text-center py-5 text-muted">
+          <i class="bi bi-egg-fried" style="font-size: 3rem; color: #ddd;"></i>
+          <p class="mt-2 fw-bold">Rien de loggé pour cette journée.</p>
+        </div>
       {% endif %}
     </div>
   </div>
 
-  <!-- Right column: exercise + micros + day goal -->
-  <div class="col-lg-5 d-flex flex-column gap-3">
+  <div class="col-lg-5 d-flex flex-column gap-4">
 
-    <!-- Exercise -->
-    <div class="panel">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <div class="panel-title mb-0"><i class="bi bi-lightning-charge-fill"></i> Exercice & Dépenses</div>
-        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#addExPanel">
+    <div class="panel border-0 shadow-sm rounded-4 p-4">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h5 class="fw-bold text-secondary mb-0"><i class="bi bi-lightning-charge-fill text-warning"></i> Exercice</h5>
+        <button class="btn btn-sm btn-outline-dark rounded-circle shadow-sm" data-bs-toggle="collapse" data-bs-target="#addExPanel">
           <i class="bi bi-plus"></i>
         </button>
       </div>
-      <div class="collapse mb-2" id="addExPanel">
-        <form method="post" action="{{ url_for('tracking.log_exercise_add') }}" class="row g-2">
-          <input type="hidden" name="date_str" value="{{ date_str }}">
-          <div class="col-12"><input class="form-control form-control-sm" name="name" placeholder="ex. Course à pied, Vélo…" required></div>
-          <div class="col-6">
-            <div class="input-group input-group-sm">
-              <input class="form-control" name="kcal_burned" type="number" min="0" placeholder="kcal brûlées" required>
-              <span class="input-group-text">kcal</span>
-            </div>
-          </div>
-          <div class="col-6">
-            <div class="input-group input-group-sm">
-              <input class="form-control" name="duration_min" type="number" min="0" placeholder="Durée">
-              <span class="input-group-text">min</span>
-            </div>
-          </div>
-          <div class="col-12"><button class="btn btn-sm btn-accent w-100" type="submit"><i class="bi bi-plus"></i> Ajouter</button></div>
-        </form>
-      </div>
-      {% if exercise %}
-        {% for ex in exercise %}
-        <div class="log-entry">
-          <div class="log-entry-name"><i class="bi bi-fire text-warning"></i> {{ ex.name }}
-            {% if ex.duration_min %}<span class="log-servings">{{ ex.duration_min }} min</span>{% endif %}
-          </div>
-          <div class="log-entry-kcal" style="color:#f5a623">−{{ ex.kcal_burned|int }} kcal</div>
-          <form method="post" action="{{ url_for('tracking.exercise_delete', entry_id=ex.id) }}">
+
+      <div class="collapse mb-3" id="addExPanel">
+        <div class="card card-body bg-light border-0 rounded-4 shadow-sm">
+          <form method="post" action="{{ url_for('tracking.log_exercise_add') }}" class="row g-2">
             <input type="hidden" name="date_str" value="{{ date_str }}">
-            <button class="log-del-btn"><i class="bi bi-x"></i></button>
+            <div class="col-12"><input class="form-control border-0 shadow-sm" name="name" placeholder="ex. Course à pied..." required></div>
+            <div class="col-6">
+              <input class="form-control border-0 shadow-sm" name="kcal_burned" type="number" min="0" placeholder="Kcal" required>
+            </div>
+            <div class="col-6">
+              <input class="form-control border-0 shadow-sm" name="duration_min" type="number" min="0" placeholder="Minutes">
+            </div>
+            <div class="col-12"><button class="btn btn-dark w-100 rounded-pill fw-bold shadow-sm" type="submit">Ajouter</button></div>
           </form>
         </div>
-        {% endfor %}
-        <div class="text-end mt-1" style="font-size:.8rem;color:#aaa">Total brûlé : {{ burned|int }} kcal</div>
+      </div>
+
+      {% if exercise %}
+        <div class="list-group list-group-flush mb-2">
+          {% for ex in exercise %}
+            <div class="list-group-item d-flex justify-content-between align-items-center border-0 bg-light rounded-3 mb-2 shadow-sm">
+              <div>
+                <i class="bi bi-fire text-warning me-2"></i><span class="fw-bold">{{ ex.name }}</span>
+                {% if ex.duration_min %}<span class="text-muted small ms-2">{{ ex.duration_min }} min</span>{% endif %}
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="fw-bold text-warning">−{{ ex.kcal_burned|int }} kcal</span>
+                <form method="post" action="{{ url_for('tracking.log_exercise_delete', entry_id=ex.id) }}">
+                  <input type="hidden" name="date_str" value="{{ date_str }}">
+                  <button type="submit" class="btn btn-sm btn-link text-danger p-0"><i class="bi bi-x-circle-fill"></i></button>
+                </form>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+        <div class="text-end small fw-bold text-muted">Total brûlé : {{ burned|int }} kcal</div>
       {% else %}
-        <div style="font-size:.85rem;color:#bbb;text-align:center;padding:12px 0">Aucun exercice enregistré</div>
+        <div class="text-center py-3 text-muted small">Aucun exercice enregistré.</div>
       {% endif %}
     </div>
 
-    <!-- Micronutrients & Vitamins -->
-    <div class="panel">
+    <div class="panel border-0 shadow-sm rounded-4 p-4">
       <details>
-        <summary class="panel-title" style="cursor:pointer;list-style:none;display:flex;justify-content:space-between">
-          <span><i class="bi bi-capsule"></i> Micronutriments & Vitamines</span>
-          <i class="bi bi-chevron-down" style="font-size:.8rem"></i>
+        <summary class="fw-bold text-secondary" style="cursor:pointer; list-style:none; display:flex; justify-content:space-between;">
+          <span><i class="bi bi-capsule text-info"></i> Vitamines & Minéraux</span>
+          <i class="bi bi-chevron-down"></i>
         </summary>
-        <div class="micro-grid mt-3">
+        <div class="mt-4 row g-3">
           {% for field in MICRO_FIELDS + VITAMIN_FIELDS %}
-          {% set val  = (totals.get(field) or 0) %}
-          {% set rdi  = RDI.get(field, 1) %}
-          {% set pct  = [(val / rdi * 100)|round(0), 100]|min if rdi else 0 %}
-          {% set label, unit = NUTRIENT_LABELS[field] %}
-          <div class="micro-item">
-            <div class="micro-label">{{ label }}</div>
-            <div class="micro-bar-wrap">
-              <div class="micro-bar" id="bar-{{ field }}" style="width:{{ pct }}%;
-                   {{ 'background:#e53935' if pct >= 100 else 'background:var(--accent)' if pct >= 75 else 'background:#4a90e2' if pct >= 40 else 'background:#ddd' }}">
-              </div>
+            <div class="col-6">
+              {{ nutrient_progress(field, (totals.get(field) or 0), RDI.get(field, 1), '#17a2b8', is_micro=true) }}
             </div>
-            <div class="micro-val">
-              <span id="total-{{ field }}">{{ val|round(1) }}</span>
-              <span id="goal-{{ field }}" style="display:none">{{ rdi }}</span> <span>/{{ rdi }}{{ unit }}</span>
-          </div>
-          </div>
           {% endfor %}
         </div>
       </details>
     </div>
 
-    <!-- Daily goal override -->
-    <div class="panel">
+    <div class="panel border-0 shadow-sm rounded-4 p-4">
       <details {{ 'open' if daily_goal }}>
-        <summary class="panel-title" style="cursor:pointer;list-style:none;display:flex;justify-content:space-between">
-          <span><i class="bi bi-target"></i> Objectif du jour {% if daily_goal %}<span class="badge bg-warning text-dark ms-1">Personnalisé</span>{% endif %}</span>
-          <i class="bi bi-chevron-down" style="font-size:.8rem"></i>
+        <summary class="fw-bold text-secondary" style="cursor:pointer; list-style:none; display:flex; justify-content:space-between;">
+          <span>
+            <i class="bi bi-target text-danger"></i> Objectif du jour 
+            {% if daily_goal %}<span class="badge bg-warning text-dark ms-2">Modifié</span>{% endif %}
+          </span>
+          <i class="bi bi-chevron-down"></i>
         </summary>
-        <form method="post" action="{{ url_for('tracking.log_goal_set') }}" class="row g-2 mt-2">
-          <input type="hidden" name="date_str" value="{{ date_str }}">
-          <div class="col-6">
-            <label class="form-label-sm">Calories (kcal)</label>
-            <input class="form-control form-control-sm" name="goal_kcal" type="number" min="0"
-                   value="{{ daily_goal.goal_kcal|int if daily_goal else goals.kcal|int }}" placeholder="{{ goals.kcal|int }}">
-          </div>
-          <div class="col-6">
-            <label class="form-label-sm">Protéines (g)</label>
-            <input class="form-control form-control-sm" name="goal_protein_g" type="number" min="0"
-                   value="{{ daily_goal.goal_protein_g|int if daily_goal else goals.protein_g|int }}">
-          </div>
-          <div class="col-6">
-            <label class="form-label-sm">Glucides (g)</label>
-            <input class="form-control form-control-sm" name="goal_carbs_g" type="number" min="0"
-                   value="{{ daily_goal.goal_carbs_g|int if daily_goal else goals.carbs_g|int }}">
-          </div>
-          <div class="col-6">
-            <label class="form-label-sm">Lipides (g)</label>
-            <input class="form-control form-control-sm" name="goal_fat_g" type="number" min="0"
-                   value="{{ daily_goal.goal_fat_g|int if daily_goal else goals.fat_g|int }}">
-          </div>
-          <div class="col-12 d-flex gap-2">
-            <button class="btn btn-accent btn-sm flex-fill" type="submit"><i class="bi bi-check"></i> Appliquer</button>
-            {% if daily_goal %}
-            <button class="btn btn-outline-secondary btn-sm" type="submit" name="goal_kcal" value="">
-              <i class="bi bi-arrow-counterclockwise"></i> Reset
-            </button>
-            {% endif %}
-          </div>
-        </form>
+        <div class="card card-body bg-light border-0 rounded-4 shadow-sm mt-3">
+          <form method="post" action="{{ url_for('tracking.log_goal_set') }}" class="row g-3">
+            <input type="hidden" name="date_str" value="{{ date_str }}">
+            {% for field, lbl in [('goal_kcal', 'Calories'), ('goal_protein_g', 'Protéines'), ('goal_carbs_g', 'Glucides'), ('goal_fat_g', 'Lipides')] %}
+              {% set base_field = field|replace('goal_', '') %}
+              <div class="col-6">
+                <label class="form-label small fw-bold text-muted">{{ lbl }}</label>
+                <input class="form-control border-0 shadow-sm" name="{{ field }}" type="number" min="0"
+                       value="{{ daily_goal[field]|int if daily_goal else goals[base_field]|int }}">
+              </div>
+            {% endfor %}
+            <div class="col-12 d-flex gap-2 mt-3">
+              <button class="btn btn-dark w-100 rounded-pill fw-bold shadow-sm" type="submit"><i class="bi bi-check2"></i> Appliquer</button>
+              {% if daily_goal %}
+                <button class="btn btn-outline-danger rounded-pill px-3 shadow-sm" type="submit" name="goal_kcal" value="" title="Réinitialiser">
+                  <i class="bi bi-arrow-counterclockwise"></i>
+                </button>
+              {% endif %}
+            </div>
+          </form>
+        </div>
       </details>
     </div>
 
@@ -375,6 +352,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
+    // Variables pour dashboard.js
     const CHART_DATA = {
         labels: {{ chart_labels | tojson | safe if chart_labels else '[]' }},
         kcal: {{ chart_kcal | tojson | safe if chart_kcal else '[]' }},

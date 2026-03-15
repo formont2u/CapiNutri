@@ -2,236 +2,206 @@
 {% block title %}{{ 'Modifier' if recipe else 'Nouvelle' }} recette{% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center gap-3 mb-4">
-  <a href="{{ url_for('recipes.view_recipe', recipe_id=recipe.id) if recipe else url_for('recipes.index') }}"
-     class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
-    <i class="bi bi-arrow-left"></i> Retour
-  </a>
-  <h1 class="mb-0" style="font-size:1.5rem;font-weight:800">
-    {{ 'Modifier la recette' if recipe else 'Nouvelle recette' }}
-  </h1>
+
+<div class="d-flex align-items-center justify-content-between mb-4 pb-2 border-bottom">
+  <div class="d-flex align-items-center gap-3">
+    <a href="{{ url_for('recipes.view_recipe', recipe_id=recipe.id) if recipe else url_for('recipes.index') }}" class="btn btn-light rounded-circle shadow-sm">
+      <i class="bi bi-arrow-left"></i>
+    </a>
+    <h3 class="mb-0 fw-bold" style="color: #2c3e50;">
+      {{ 'Modifier la recette' if recipe else 'Nouvelle recette' }}
+    </h3>
+  </div>
 </div>
 
-<div class="off-banner mb-3">
-  <i class="bi bi-database-fill-check"></i>
-  <span>
-    <strong>🥦 Brut</strong> → <a href="https://fdc.nal.usda.gov" target="_blank">USDA FoodData Central</a> (rapide, aliments simples, 34 nutriments) ·
-    <strong>🏷️ Marque</strong> → <a href="https://world.openfoodfacts.org" target="_blank">Open Food Facts</a> (produits emballés, toutes langues)
+<div class="alert alert-info border-0 shadow-sm rounded-4 d-flex align-items-center gap-3 mb-4" style="background-color: #e3f2fd;">
+  <i class="bi bi-database-fill-check fs-4 text-primary"></i>
+  <span class="small text-dark">
+    <strong>🥦 Brut</strong> → <a href="https://fdc.nal.usda.gov" target="_blank" class="fw-bold text-decoration-none">USDA</a> (rapide, 34 nutriments) &nbsp;·&nbsp;
+    <strong>🏷️ Marque</strong> → <a href="https://world.openfoodfacts.org" target="_blank" class="fw-bold text-decoration-none">Open Food Facts</a> (produits emballés)
   </span>
 </div>
 
 <form method="post">
-<div class="form-panel">
-
-  <div class="row g-3 mb-4">
-    <div class="col-md-6">
-      <label class="form-label">Nom de la recette *</label>
-      <input class="form-control" name="name" required placeholder="ex. Omelette classique"
-             value="{{ recipe.name if recipe else '' }}">
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Catégorie</label>
-      <input class="form-control" name="category" list="cat-list" placeholder="Petit-déjeuner..."
-             value="{{ recipe.category if recipe and recipe.category else '' }}">
-      <datalist id="cat-list">{% for cat in categories %}<option value="{{ cat }}">{% endfor %}</datalist>
-    </div>
-	
-    <div class="col-md-3">
-      <label class="form-label">Portions</label>
-      <input class="form-control" name="servings" type="number" min="0.5" step="0.5"
-             value="{{ recipe.servings if recipe else 1 }}">
-    </div>
-  </div>
-
-  <div class="mb-4">
-    <label class="form-label">Instructions</label>
-    <textarea class="form-control" name="instructions" rows="4"
-              placeholder="Une étape par ligne.">{{ recipe.instructions if recipe else '' }}</textarea>
-  </div>
-
-  <div>
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <div>
-        <label class="form-label mb-0" style="font-size:1rem;font-weight:700">Ingrédients</label>
-        <span class="ms-2" style="font-size:.78rem;color:#aaa">
-          <i class="bi bi-search"></i> Tapez pour chercher dans Open Food Facts
-        </span>
+  
+  <div class="panel border-0 shadow-sm rounded-4 p-4 mb-4 bg-white">
+    <h5 class="fw-bold text-secondary mb-4"><i class="bi bi-info-circle text-accent"></i> Informations de base</h5>
+    <div class="row g-4 mb-4">
+      <div class="col-md-6">
+        <label class="form-label small fw-bold text-muted text-uppercase">Nom de la recette *</label>
+        <input class="form-control form-control-lg bg-light border-0 shadow-sm" name="name" required placeholder="ex. Omelette classique" value="{{ recipe.name if recipe else '' }}">
       </div>
-      <button type="button" class="btn btn-sm btn-accent d-flex align-items-center gap-1" id="addIng">
-        <i class="bi bi-plus-lg"></i> Ajouter
+      <div class="col-md-3">
+        <label class="form-label small fw-bold text-muted text-uppercase">Catégorie</label>
+        <input class="form-control form-control-lg bg-light border-0 shadow-sm" name="category" list="cat-list" placeholder="Petit-déjeuner..." value="{{ recipe.category if recipe and recipe.category else '' }}">
+        <datalist id="cat-list">{% for cat in categories %}<option value="{{ cat }}">{% endfor %}</datalist>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small fw-bold text-muted text-uppercase">Portions</label>
+        <input class="form-control form-control-lg bg-light border-0 shadow-sm" name="servings" type="number" min="0.5" step="0.5" value="{{ recipe.servings if recipe else 1 }}">
+      </div>
+    </div>
+
+    <div class="mb-2">
+      <label class="form-label small fw-bold text-muted text-uppercase">Instructions (Optionnel)</label>
+      <textarea class="form-control bg-light border-0 shadow-sm" name="instructions" rows="4" placeholder="Une étape par ligne...">{{ recipe.instructions if recipe else '' }}</textarea>
+    </div>
+  </div>
+
+  <div class="panel border-0 shadow-sm rounded-4 p-4 mb-4 bg-white">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <div>
+        <h5 class="fw-bold text-secondary mb-1"><i class="bi bi-basket text-success"></i> Ingrédients</h5>
+        <small class="text-muted"><i class="bi bi-search"></i> Tapez pour chercher un aliment en direct</small>
+      </div>
+      <button type="button" class="btn btn-dark rounded-pill px-3 shadow-sm fw-bold" id="addIng">
+        <i class="bi bi-plus-lg"></i> Ajouter un ingrédient
       </button>
     </div>
 
-    <div class="ing-header">
-      <div>Ingrédient</div><div>Quantité</div><div>Unité</div>
-      <div style="text-align:center">Nutrition</div><div></div>
+    <div class="row px-3 pb-2 text-muted small fw-bold text-uppercase d-none d-md-flex border-bottom mb-3">
+      <div class="col-5">Ingrédient</div>
+      <div class="col-2">Source</div>
+      <div class="col-2">Quantité</div>
+      <div class="col-2 text-center">Nutrition</div>
+      <div class="col-1"></div>
     </div>
+
+    {% macro nutr_input(fname, ing) %}
+      {% set label, unit = NUTRIENT_LABELS[fname] %}
+      <div class="col-6 col-md-3 mb-2">
+        <label class="form-label small fw-bold text-muted mb-1">{{ label }} <span class="text-secondary fw-normal">{{ unit }}</span></label>
+        <input class="form-control form-control-sm bg-light border-0 shadow-sm nutr-input" name="ing_{{ fname }}" data-field="{{ fname }}" type="number" min="0" step="any" placeholder="—" value="{{ ing[fname]|round(2) if ing and ing[fname] is not none else '' }}">
+      </div>
+    {% endmacro %}
 
     <div id="ingList">
-    {% set ings = recipe.ingredients if recipe and recipe.ingredients else [none] %}
-    {% for ing in ings %}
-    <div class="ing-block">
-      <div class="ing-row-main">
-        <div class="off-search-wrap">
-          <input class="form-control form-control-sm off-name-input" name="ing_name"
-                 placeholder="ex. Farine, Eple, kjøttdeig..." autocomplete="off"
-                 value="{{ ing.name if ing else '' }}">
-          <div class="off-dropdown" style="display:none"></div>
-        </div>
-        <div class="ing-source-toggle" title="Aliment brut → USDA (rapide) · Produit de marque → Open Food Facts">
-          <button type="button" class="src-btn src-usda active" data-source="usda">🥦 Brut</button>
-          <button type="button" class="src-btn src-off" data-source="off">🏷️ Marque</button>
-        </div>
-        <input class="form-control form-control-sm ing-qty-input" name="ing_qty"
-               placeholder="200" type="number" min="0" step="any"
-               value="{{ ing.quantity if ing else '' }}">
-        <select class="form-select form-select-sm ing-unit-input" name="ing_unit" style="min-width: 80px;">
-          <optgroup label="Poids">
-            <option value="g" {{ 'selected' if ing and ing.unit == 'g' else '' }}>g</option>
-            <option value="kg" {{ 'selected' if ing and ing.unit == 'kg' else '' }}>kg</option>
-          </optgroup>
-          <optgroup label="Volume">
-            <option value="ml" {{ 'selected' if ing and ing.unit == 'ml' else '' }}>ml</option>
-            <option value="cl" {{ 'selected' if ing and ing.unit == 'cl' else '' }}>cl</option>
-            <option value="cas" {{ 'selected' if ing and ing.unit == 'cas' else '' }}>c.à.s</option>
-            <option value="cac" {{ 'selected' if ing and ing.unit == 'cac' else '' }}>c.à.c</option>
-          </optgroup>
-          <optgroup label="Unités">
-            <option value="pièce" {{ 'selected' if ing and ing.unit == 'pièce' else '' }}>pièce</option>
-            <option value="gousse" {{ 'selected' if ing and ing.unit == 'gousse' else '' }}>gousse (ail)</option>
-            <option value="oignon" {{ 'selected' if ing and ing.unit == 'oignon' else '' }}>oignon</option>
-            <option value="pincée" {{ 'selected' if ing and ing.unit == 'pincée' else '' }}>pincée</option>
-          </optgroup>
-        </select>
-        <button type="button" class="btn-nutr-toggle {{ 'has-data' if ing and ing.has_nutrition }}"
-                title="Valeurs nutritionnelles">
-          <i class="bi bi-bar-chart-line"></i>
-          {% if ing and ing.has_nutrition %}
-          <span class="kcal-badge">{{ ing.kcal|int }} kcal</span>
-          {% endif %}
-        </button>
-        <button type="button" class="btn-remove-ing"><i class="bi bi-x-lg"></i></button>
-      </div>
+      {% set ings = recipe.ingredients if recipe and recipe.ingredients else [none] %}
+      {% for ing in ings %}
+        <div class="ing-block bg-white border rounded-4 p-3 mb-3 shadow-sm">
+          
+          <div class="row g-2 align-items-center mb-2 position-relative">
+            <div class="col-12 col-md-5">
+              <input class="form-control bg-light border-0 shadow-sm off-name-input fw-bold" name="ing_name" placeholder="ex. Farine, Eple..." autocomplete="off" value="{{ ing.name if ing else '' }}">
+              <div class="off-dropdown list-group position-absolute w-100 shadow rounded-3 mt-1" style="display:none; z-index: 1000; max-height: 250px; overflow-y: auto;"></div>
+            </div>
+            
+            <div class="col-6 col-md-2">
+              <div class="btn-group btn-group-sm w-100 shadow-sm ing-source-toggle" role="group">
+                <button type="button" class="btn btn-outline-success src-btn src-usda active" data-source="usda" title="Brut (USDA)">🥦 Brut</button>
+                <button type="button" class="btn btn-outline-primary src-btn src-off" data-source="off" title="Marque (Open Food Facts)">🏷️ Marque</button>
+              </div>
+            </div>
 
-      <div class="ing-nutr-panel {{ '' if ing and ing.has_nutrition else 'hidden' }}">
-        <div class="off-source-row" style="display:none">
-          <span class="off-source-badge"><i class="bi bi-database-fill-check"></i> Open Food Facts</span>
-          <span class="off-source-product"></span>
-          <span class="off-scale-note"></span>
-          <button type="button" class="off-clear-btn"><i class="bi bi-x-circle"></i> Effacer</button>
-        </div>
+            <div class="col-6 col-md-2 d-flex gap-1">
+              <input class="form-control form-control-sm bg-light border-0 shadow-sm ing-qty-input text-end fw-bold text-accent" name="ing_qty" placeholder="100" type="number" min="0" step="any" value="{{ ing.quantity if ing else '' }}">
+              <select class="form-select form-select-sm bg-light border-0 shadow-sm ing-unit-input" name="ing_unit">
+                <option value="g" {{ 'selected' if ing and ing.unit == 'g' else '' }}>g</option>
+                <option value="kg" {{ 'selected' if ing and ing.unit == 'kg' else '' }}>kg</option>
+                <option value="ml" {{ 'selected' if ing and ing.unit == 'ml' else '' }}>ml</option>
+                <option value="cas" {{ 'selected' if ing and ing.unit == 'cas' else '' }}>c.à.s</option>
+                <option value="pièce" {{ 'selected' if ing and ing.unit == 'pièce' else '' }}>pièce</option>
+                <option value="pincée" {{ 'selected' if ing and ing.unit == 'pincée' else '' }}>pincée</option>
+              </select>
+            </div>
 
-        {% macro nutr_input(fname, ing) %}
-        {% set label, unit = NUTRIENT_LABELS[fname] %}
-        <div class="nutr-field">
-          <label>{{ label }} <span class="nutr-unit">{{ unit }}</span></label>
-          <input class="form-control form-control-sm nutr-input" name="ing_{{ fname }}"
-                 data-field="{{ fname }}" type="number" min="0" step="any" placeholder="—"
-                 value="{{ ing[fname]|round(2) if ing and ing[fname] is not none else '' }}">
-        </div>
-        {% endmacro %}
+            <div class="col-12 col-md-3 d-flex justify-content-end gap-2">
+              <button type="button" class="btn btn-sm btn-light border shadow-sm btn-nutr-toggle {{ 'has-data' if ing and ing.has_nutrition else '' }} w-100 d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-bar-chart-line text-primary"></i> Nutrition</span>
+                {% if ing and ing.has_nutrition %}
+                  <span class="badge bg-accent rounded-pill kcal-badge">{{ ing.kcal|int }} kcal</span>
+                {% endif %}
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-danger border-0 btn-remove-ing"><i class="bi bi-trash-fill"></i></button>
+            </div>
+          </div>
 
-        <div class="nutr-section-tabs">
-          <button type="button" class="nutr-tab active" data-section="macros">Macros</button>
-          <button type="button" class="nutr-tab" data-section="glucides">Glucides</button>
-          <button type="button" class="nutr-tab" data-section="lipides">Lipides</button>
-          <button type="button" class="nutr-tab" data-section="micro">Micro</button>
-          <button type="button" class="nutr-tab" data-section="vitamines">Vitamines</button>
-          <button type="button" class="nutr-tab nutr-tab-usda" data-section="usda">USDA +</button>
+          <div class="ing-nutr-panel bg-light p-3 rounded-3 mt-3 {{ '' if ing and ing.has_nutrition else 'd-none' }}">
+            <div class="off-source-row alert alert-success py-1 px-2 mb-3 d-flex justify-content-between align-items-center" style="display:none !important;">
+              <div>
+                <span class="badge bg-success off-source-badge me-2"><i class="bi bi-database-fill-check"></i> Connecté</span>
+                <strong class="off-source-product small"></strong> <span class="off-scale-note small text-muted ms-2"></span>
+              </div>
+              <button type="button" class="btn btn-link text-danger p-0 text-decoration-none small off-clear-btn"><i class="bi bi-x-circle"></i> Effacer</button>
+            </div>
+
+            <ul class="nav nav-pills nav-sm mb-3 nutr-section-tabs gap-1">
+              <li class="nav-item"><button type="button" class="nav-link active py-1 px-3 nutr-tab" data-section="macros">Macros</button></li>
+              <li class="nav-item"><button type="button" class="nav-link py-1 px-3 nutr-tab" data-section="glucides">Glucides</button></li>
+              <li class="nav-item"><button type="button" class="nav-link py-1 px-3 nutr-tab" data-section="lipides">Lipides</button></li>
+              <li class="nav-item"><button type="button" class="nav-link py-1 px-3 nutr-tab" data-section="micro">Micro</button></li>
+              <li class="nav-item"><button type="button" class="nav-link py-1 px-3 nutr-tab" data-section="vitamines">Vitamines</button></li>
+              <li class="nav-item"><button type="button" class="nav-link py-1 px-3 nutr-tab text-warning" data-section="usda">USDA +</button></li>
+            </ul>
+
+            <div class="nutr-section active" data-section="macros"><div class="row">{% for f in MACRO_FIELDS %}{{ nutr_input(f, ing) }}{% endfor %}</div></div>
+            <div class="nutr-section d-none" data-section="glucides"><div class="row">{% for f in CARB_FIELDS %}{{ nutr_input(f, ing) }}{% endfor %}</div></div>
+            <div class="nutr-section d-none" data-section="lipides"><div class="row">{% for f in FAT_FIELDS %}{{ nutr_input(f, ing) }}{% endfor %}</div></div>
+            <div class="nutr-section d-none" data-section="micro"><div class="row">{% for f in MICRO_FIELDS %}{{ nutr_input(f, ing) }}{% endfor %}</div></div>
+            <div class="nutr-section d-none" data-section="vitamines"><div class="row">{% for f in VITAMIN_FIELDS %}{{ nutr_input(f, ing) }}{% endfor %}</div></div>
+            <div class="nutr-section d-none" data-section="usda"><div class="row">{% for f in USDA_FIELDS %}{{ nutr_input(f, ing) }}{% endfor %}</div></div>
+            
+            <small class="text-muted fst-italic">Valeurs pour la quantité indiquée ci-dessus. Modifiables manuellement.</small>
+          </div>
         </div>
-        <div class="nutr-section active" data-section="macros">
-          <div class="nutr-grid-4">{% for f in MACRO_FIELDS %}{{ nutr_input(f, ing) }}{% endfor %}</div>
-        </div>
-        <div class="nutr-section" data-section="glucides">
-          <div class="nutr-grid-4">{% for f in CARB_FIELDS %}{{ nutr_input(f, ing) }}{% endfor %}</div>
-        </div>
-        <div class="nutr-section" data-section="lipides">
-          <div class="nutr-grid-4">{% for f in FAT_FIELDS %}{{ nutr_input(f, ing) }}{% endfor %}</div>
-        </div>
-        <div class="nutr-section" data-section="micro">
-          <div class="nutr-grid-4">{% for f in MICRO_FIELDS %}{{ nutr_input(f, ing) }}{% endfor %}</div>
-        </div>
-        <div class="nutr-section" data-section="vitamines">
-          <div class="nutr-grid-4">{% for f in VITAMIN_FIELDS %}{{ nutr_input(f, ing) }}{% endfor %}</div>
-        </div>
-        <div class="nutr-section" data-section="usda">
-          <div class="nutr-grid-4">{% for f in USDA_FIELDS %}{{ nutr_input(f, ing) }}{% endfor %}</div>
-        </div>
-        <div class="nutr-hint">Valeurs pour la quantité indiquée (pas pour 100 g). Modifiables manuellement.</div>
-      </div>
-    </div>
-    {% endfor %}
+      {% endfor %}
     </div>
   </div>
 
-</div>
-
-<div class="d-flex gap-3 mt-4">
-  <button type="submit" class="btn btn-accent px-4 py-2 d-flex align-items-center gap-2">
-    <i class="bi bi-floppy"></i> {{ 'Sauvegarder' if recipe else 'Ajouter la recette' }}
-  </button>
-  <a href="{{ url_for('recipes.view_recipe', recipe_id=recipe.id) if recipe else url_for('recipes.index') }}"
-     class="btn btn-outline-secondary">Annuler</a>
-</div>
+  <div class="d-flex justify-content-end gap-3 mb-5">
+    <a href="{{ url_for('recipes.view_recipe', recipe_id=recipe.id) if recipe else url_for('recipes.index') }}" class="btn btn-outline-secondary rounded-pill px-4 fw-bold shadow-sm">Annuler</a>
+    <button type="submit" class="btn btn-accent rounded-pill px-5 fw-bold shadow-sm">
+      <i class="bi bi-floppy"></i> {{ 'Sauvegarder' if recipe else 'Créer la recette' }}
+    </button>
+  </div>
 </form>
 {% endblock %}
 
 {% block scripts %}
 <script>
-const OFF_MAP = {
-  'energy-kcal_100g':         { f: 'kcal',          m: 1        },
-  'proteins_100g':            { f: 'protein_g',      m: 1        },
-  'carbohydrates_100g':       { f: 'carbs_g',        m: 1        },
-  'fat_100g':                 { f: 'fat_g',          m: 1        },
-  'sugars_100g':              { f: 'sugars_g',       m: 1        },
-  'fiber_100g':               { f: 'fiber_g',        m: 1        },
-  'saturated-fat_100g':       { f: 'saturated_g',    m: 1        },
-  'monounsaturated-fat_100g': { f: 'monounsat_g',    m: 1        },
-  'polyunsaturated-fat_100g': { f: 'polyunsat_g',    m: 1        },
-  'sodium_100g':              { f: 'sodium_mg',      m: 1000     },
-  'calcium_100g':             { f: 'calcium_mg',     m: 1000     },
-  'iron_100g':                { f: 'iron_mg',        m: 1000     },
-  'potassium_100g':           { f: 'potassium_mg',   m: 1000     },
-  'magnesium_100g':           { f: 'magnesium_mg',   m: 1000     },
-  'zinc_100g':                { f: 'zinc_mg',        m: 1000     },
-  'vitamin-a_100g':           { f: 'vit_a_mcg',      m: 1000000  },
-  'vitamin-c_100g':           { f: 'vit_c_mg',       m: 1000     },
-  'vitamin-d_100g':           { f: 'vit_d_mcg',      m: 1000000  },
-  'vitamin-b1_100g':          { f: 'vit_b1_mg',      m: 1000     },
-  'vitamin-b2_100g':          { f: 'vit_b2_mg',      m: 1000     },
-  'vitamin-pp_100g':          { f: 'vit_b3_mg',      m: 1000     },
-  'vitamin-b6_100g':          { f: 'vit_b6_mg',      m: 1000     },
-  'vitamin-b9_100g':          { f: 'vit_b9_mcg',     m: 1000000  },
-  'vitamin-b12_100g':         { f: 'vit_b12_mcg',    m: 1000000  },
+// --- DONNÉES INJECTÉES PAR LE BACKEND ---
+const LABELS = {{ NUTRIENT_LABELS | tojson }};
+const GROUPS = {
+  macros:    ['kcal','protein_g','carbs_g','fat_g'],
+  glucides:  ['sugars_g','fiber_g'],
+  lipides:   ['saturated_g','monounsat_g','polyunsat_g'],
+  micro:     ['sodium_mg','calcium_mg','iron_mg','potassium_mg','magnesium_mg','zinc_mg'],
+  vitamines: ['vit_a_mcg','vit_c_mg','vit_d_mcg','vit_e_mg','vit_k_mcg','vit_b1_mg','vit_b2_mg','vit_b3_mg','vit_b6_mg','vit_b9_mcg','vit_b12_mcg'],
+  usda:      ['cholesterol_mg','trans_fat_g','omega3_g','omega6_g','phosphorus_mg','selenium_mcg','copper_mg','manganese_mg'],
 };
+const TAB_LABELS = {macros:'Macros',glucides:'Glucides',lipides:'Lipides',micro:'Micro',vitamines:'Vitamines',usda:'USDA +'};
 
 const GRAM_UNITS = new Set(['g','gr','gram','grams','gramme','grammes']);
 const CONVERSIONS = {
   'kg': 1000, 'kilo': 1000,
-  'ml': 1, 'cl': 10, 'dl': 100, 'l': 1000, 'litre': 1000, 'litres': 1000,
+  'ml': 1, 'cl': 10, 'dl': 100, 'l': 1000, 'litre': 1000,
   'cac': 5, 'càc': 5, 'tsp': 5, 'cuillère à café': 5,
-  'cas': 15, 'càs': 15, 'tbsp': 15, 'cuillère à soupe': 15, 'cuillère': 15,
-  'pincée': 0.5, 'pincee': 0.5, 'pinch': 0.5,
+  'cas': 15, 'càs': 15, 'tbsp': 15, 'cuillère à soupe': 15,
+  'pincée': 0.5, 'pinch': 0.5,
   'tasse': 250, 'cup': 250, 'verre': 200,
-  'oignon': 80, 'onion': 80, 'gousse': 5, 'clove': 5,
-  'pièce': 100, 'piece': 100, 'unité': 100
+  'oignon': 80, 'gousse': 5,
+  'pièce': 100, 'unité': 100
 };
 
+// --- UTILITAIRES ---
 function toGrams(qty, unit) {
   const u = (unit||'').toLowerCase().trim();
   if (u === '' || GRAM_UNITS.has(u)) return qty;
-  
-  // Vérification stricte
   if (CONVERSIONS[u]) return qty * CONVERSIONS[u];
-  
-  // Si l'utilisateur tape "1 cas d'huile", on cherche le mot exact
   const words = u.replace(/[.,']/g, ' ').split(/\s+/);
-  for (const w of words) {
-    if (CONVERSIONS[w]) return qty * CONVERSIONS[w];
-  }
+  for (const w of words) if (CONVERSIONS[w]) return qty * CONVERSIONS[w];
   return null;
 }
 
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function showToast(msg, type='info') {
+    const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
+    const icon = type === 'warn' ? 'warning' : type === 'error' ? 'error' : 'success';
+    Toast.fire({ icon: icon, title: msg });
+}
+
+// --- LOGIQUE API EXTERNE ---
 async function searchOFF(q, source) {
   const r = await fetch(`/api/search_food?q=${encodeURIComponent(q)}&source=${source}`);
   if (!r.ok) throw new Error('search error');
@@ -248,11 +218,9 @@ function fillFromBackend(block, product, qty, unit) {
   
   block.dataset.per100g = JSON.stringify(per100g);
 
-  // Correction du bug "100 cuillères à soupe"
   let parsedQty = parseFloat(qty);
   if (isNaN(parsedQty)) {
     const u = (unit||'').toLowerCase().trim();
-    // Si c'est vide ou en grammes, on affiche pour 100. Sinon, on assume 1 unité (1 cas, 1 oignon)
     parsedQty = (u === '' || GRAM_UNITS.has(u)) ? 100 : 1; 
   }
 
@@ -263,66 +231,58 @@ function fillFromBackend(block, product, qty, unit) {
   let filled = 0;
   for (const [field, val] of Object.entries(per100g)) {
     const inp = block.querySelector(`input[data-field="${field}"]`);
-    if (!inp) continue;
-    inp.value = parseFloat((val * scale).toFixed(4));
-    filled++;
+    if (inp) { inp.value = parseFloat((val * scale).toFixed(4)); filled++; }
   }
   if (!filled) return false;
 
   const srcRow = block.querySelector('.off-source-row');
   const srcBadge = block.querySelector('.off-source-badge');
   if (srcBadge) {
-    const srcLabels = {
-      library: '<i class="bi bi-bookmark-fill"></i> Bibliothèque',
-      usda:    '<i class="bi bi-award-fill"></i> USDA',
-      off:     '<i class="bi bi-database-fill-check"></i> Open Food Facts',
-    };
-    srcBadge.innerHTML = srcLabels[product.source] || srcLabels.off;
-    srcBadge.className = 'off-source-badge src-badge-' + (product.source || 'off');
+    const srcLabels = { library: 'Bibliothèque', usda: 'USDA', off: 'Open Food Facts' };
+    srcBadge.innerHTML = `<i class="bi bi-check-circle-fill"></i> ${srcLabels[product.source] || 'Base de données'}`;
+    srcBadge.className = `badge off-source-badge me-2 bg-${product.source === 'usda' ? 'warning text-dark' : 'primary'}`;
   }
   
   block.querySelector('.off-source-product').textContent = product.label || product.name;
   const scaleEl = block.querySelector('.off-scale-note');
   
-  if (unknownUnit) {
-    scaleEl.innerHTML = `<span class="off-warn"><i class="bi bi-exclamation-triangle-fill"></i> Unité inconnue (calculé en g/ml)</span>`;
-  } else {
-    // Affiche intelligemment "Pour 1 cas" ou "Pour 100 g"
-    const displayQty = isNaN(parseFloat(qty)) ? parsedQty : parseFloat(qty);
-    scaleEl.textContent = `Pour ${displayQty}\u202f${unit||'g'}`;
-  }
-  srcRow.style.display = 'flex';
+  if (unknownUnit) scaleEl.innerHTML = `<span class="text-warning"><i class="bi bi-exclamation-triangle-fill"></i> Unité inconnue (calculé en g)</span>`;
+  else scaleEl.textContent = `Pour ${isNaN(parseFloat(qty)) ? parsedQty : parseFloat(qty)}\u202f${unit||'g'}`;
+  
+  srcRow.style.setProperty('display', 'flex', 'important');
 
   const toggle = block.querySelector('.btn-nutr-toggle');
   const kcalI  = block.querySelector('input[data-field="kcal"]');
   if (kcalI?.value) {
     let badge = toggle.querySelector('.kcal-badge');
-    if (!badge) { badge = document.createElement('span'); badge.className = 'kcal-badge'; toggle.appendChild(badge); }
+    if (!badge) { badge = document.createElement('span'); badge.className = 'badge bg-accent rounded-pill kcal-badge ms-2'; toggle.appendChild(badge); }
     badge.textContent = Math.round(parseFloat(kcalI.value)) + ' kcal';
-    toggle.classList.add('has-data');
+    toggle.classList.add('has-data', 'btn-primary', 'text-white');
+    toggle.classList.remove('btn-light', 'text-muted');
   }
-  block.querySelector('.ing-nutr-panel').classList.remove('hidden');
-  toggle.classList.add('active');
+  block.querySelector('.ing-nutr-panel').classList.remove('d-none');
   return true;
 }
 
 function renderDropdown(dd, products, block) {
   dd.innerHTML = '';
   if (!products.length) {
-    dd.innerHTML = '<div class="off-empty"><i class="bi bi-search"></i> Aucun résultat — saisis manuellement</div>';
+    dd.innerHTML = '<div class="list-group-item text-muted small"><i class="bi bi-search"></i> Aucun résultat — saisis manuellement</div>';
     dd.style.display = 'block'; return;
   }
   products.forEach(p => {
     const isLib = p.source === 'library';
-    const item  = document.createElement('div');
-    item.className = 'off-item'; item.tabIndex = 0;
+    const item  = document.createElement('a');
+    item.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center py-2'; 
+    item.href = "#";
     item.innerHTML = `
-      <div class="off-item-main">
-        ${isLib ? '<span class="off-lib-chip"><i class="bi bi-bookmark-fill"></i> Bibliothèque</span>' : ''}
-        <span class="off-item-name">${esc(p.name)}</span>
-        ${p.brand ? `<span class="off-item-brand">${esc(p.brand)}</span>` : ''}
+      <div style="min-width: 0;">
+        ${isLib ? '<span class="badge bg-info text-dark me-1" style="font-size: 0.65rem;">Biblio</span>' : ''}
+        <span class="fw-bold small text-truncate d-inline-block" style="max-width: 150px; vertical-align: bottom;">${esc(p.name)}</span>
+        ${p.brand ? `<small class="text-muted d-block" style="font-size: 0.7rem;">${esc(p.brand)}</small>` : ''}
       </div>
-      ${p.kcal_100g != null ? `<span class="off-item-kcal">${Math.round(p.kcal_100g)}\u202fkcal/100g</span>` : ''}`;
+      ${p.kcal_100g != null ? `<span class="badge bg-light text-dark border">${Math.round(p.kcal_100g)}\u202fkcal</span>` : ''}`;
+    
     const pick = async e => {
       e.preventDefault();
       block.querySelector('.off-name-input').value = p.name;
@@ -330,25 +290,21 @@ function renderDropdown(dd, products, block) {
       const qty  = block.querySelector('.ing-qty-input').value;
       const unit = block.querySelector('.ing-unit-input').value.trim();
       if (!fillFromBackend(block, p, qty, unit)) { showToast('Données insuffisantes.', 'warn'); return; }
+      
+      // Sauvegarde asynchrone dans la bibliothèque locale
       try {
         await fetch('/api/library/save', {
           method: 'POST',
           headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({
-            name: p.name, brand: p.brand||'', barcode: p.barcode||'',
-            per_100g: p.per_100g, library_id: isLib ? p.id : null,
-          })
+          body: JSON.stringify({ name: p.name, brand: p.brand||'', barcode: p.barcode||'', per_100g: p.per_100g, library_id: isLib ? p.id : null })
         });
       } catch(e) {}
     };
     item.addEventListener('mousedown', pick);
-    item.addEventListener('keydown', e => e.key === 'Enter' && pick(e));
     dd.appendChild(item);
   });
   dd.style.display = 'block';
 }
-
-function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function wireOFF(block) {
   const nameIn = block.querySelector('.off-name-input');
@@ -356,6 +312,7 @@ function wireOFF(block) {
   if (!nameIn || !dd) return;
   let timer, lastQ = '', lastSrc = '', busy = false;
   const close = () => dd.style.display = 'none';
+  
   nameIn.addEventListener('input', () => {
     const q   = nameIn.value.trim();
     const src = getSource(block);
@@ -365,44 +322,42 @@ function wireOFF(block) {
     clearTimeout(timer);
     timer = setTimeout(async () => {
       if (busy) return; busy = true;
-      const lbl = src === 'usda' ? 'USDA' : 'Open Food Facts';
-      dd.innerHTML = `<div class="off-loading"><span class="off-spinner"></span> Recherche ${lbl}...</div>`;
+      dd.innerHTML = `<div class="list-group-item text-center text-muted small"><div class="spinner-border spinner-border-sm text-accent me-2" role="status"></div> Recherche...</div>`;
       dd.style.display = 'block';
       try { renderDropdown(dd, await searchOFF(q, src), block); }
-      catch { dd.innerHTML = '<div class="off-empty"><i class="bi bi-wifi-off"></i> Hors ligne</div>'; }
+      catch { dd.innerHTML = '<div class="list-group-item text-danger small"><i class="bi bi-wifi-off"></i> Hors ligne</div>'; }
       finally { busy = false; }
     }, 350);
   });
-  nameIn.addEventListener('blur', () => setTimeout(close, 160));
-  nameIn.addEventListener('keydown', e => {
-    if (e.key === 'Escape') close();
-    if (e.key === 'ArrowDown') { const f = dd.querySelector('.off-item'); if (f) { f.focus(); e.preventDefault(); } }
-  });
-  dd.addEventListener('keydown', e => {
-    const items = [...dd.querySelectorAll('.off-item')];
-    const idx   = items.indexOf(document.activeElement);
-    if (e.key === 'ArrowDown' && idx < items.length-1) items[idx+1].focus();
-    if (e.key === 'ArrowUp')  { idx > 0 ? items[idx-1].focus() : nameIn.focus(); }
-    if (e.key === 'Escape')   { close(); nameIn.focus(); }
-  });
+  nameIn.addEventListener('blur', () => setTimeout(close, 200));
+  
   block.querySelector('.off-clear-btn')?.addEventListener('click', () => {
     block.querySelectorAll('input[data-field]').forEach(i => i.value = '');
-    block.querySelector('.off-source-row').style.display = 'none';
+    block.querySelector('.off-source-row').style.setProperty('display', 'none', 'important');
     const toggle = block.querySelector('.btn-nutr-toggle');
-    toggle.classList.remove('has-data','active');
+    toggle.classList.remove('has-data', 'btn-primary', 'text-white');
+    toggle.classList.add('btn-light', 'text-muted');
     toggle.querySelector('.kcal-badge')?.remove();
-    block.querySelector('.ing-nutr-panel').classList.add('hidden');
+    block.querySelector('.ing-nutr-panel').classList.add('d-none');
   });
 }
 
+// --- GESTION DES BLOCS INGRÉDIENTS (DOM) ---
 function wireNutrTabs(block) {
   block.querySelectorAll('.nutr-tab').forEach(tab => {
     tab.addEventListener('click', () => {
       const s = tab.dataset.section;
-      block.querySelectorAll('.nutr-tab').forEach(t => t.classList.remove('active'));
-      block.querySelectorAll('.nutr-section').forEach(s => s.classList.remove('active'));
-      tab.classList.add('active');
-      block.querySelector(`.nutr-section[data-section="${s}"]`)?.classList.add('active');
+      block.querySelectorAll('.nutr-tab').forEach(t => t.classList.remove('active', 'bg-primary', 'text-white'));
+      block.querySelectorAll('.nutr-section').forEach(sec => {
+          sec.classList.remove('active');
+          sec.classList.add('d-none');
+      });
+      tab.classList.add('active', 'bg-primary', 'text-white');
+      const targetSec = block.querySelector(`.nutr-section[data-section="${s}"]`);
+      if(targetSec) {
+          targetSec.classList.add('active');
+          targetSec.classList.remove('d-none');
+      }
     });
   });
 }
@@ -423,7 +378,9 @@ function wireRow(block) {
   block.querySelector('.btn-remove-ing')?.addEventListener('click', () => block.remove());
   const toggle = block.querySelector('.btn-nutr-toggle');
   const panel  = block.querySelector('.ing-nutr-panel');
-  toggle?.addEventListener('click', () => { panel.classList.toggle('hidden'); toggle.classList.toggle('active'); });
+  toggle?.addEventListener('click', () => { 
+      panel.classList.toggle('d-none'); 
+  });
   wireNutrTabs(block);
   wireSourceToggle(block);
   wireOFF(block);
@@ -433,12 +390,9 @@ function wireRow(block) {
 
   const recalc = () => {
     if (!block.dataset.per100g) return; 
-    
     const per100g = JSON.parse(block.dataset.per100g);
     const qty = parseFloat(qtyInp.value) || 0;
     const grams = toGrams(qty, unitInp.value);
-    
-    // Si on ne reconnait pas l'unité, on applique la quantité brute (assimilée à des g/ml)
     const scale = grams !== null ? grams / 100 : qty / 100;
 
     for (const [field, val] of Object.entries(per100g)) {
@@ -449,7 +403,7 @@ function wireRow(block) {
     const kcalI = block.querySelector('input[data-field="kcal"]');
     if (kcalI?.value && toggle) {
       let badge = toggle.querySelector('.kcal-badge');
-      if (!badge) { badge = document.createElement('span'); badge.className = 'kcal-badge'; toggle.appendChild(badge); }
+      if (!badge) { badge = document.createElement('span'); badge.className = 'badge bg-accent rounded-pill kcal-badge ms-2'; toggle.appendChild(badge); }
       badge.textContent = Math.round(parseFloat(kcalI.value)) + ' kcal';
     }
   };
@@ -458,80 +412,66 @@ function wireRow(block) {
   unitInp.addEventListener('input', recalc);
 }
 
-const LABELS = {{ NUTRIENT_LABELS | tojson }};
-const GROUPS = {
-  macros:    ['kcal','protein_g','carbs_g','fat_g'],
-  glucides:  ['sugars_g','fiber_g'],
-  lipides:   ['saturated_g','monounsat_g','polyunsat_g'],
-  micro:     ['sodium_mg','calcium_mg','iron_mg','potassium_mg','magnesium_mg','zinc_mg'],
-  vitamines: ['vit_a_mcg','vit_c_mg','vit_d_mcg','vit_e_mg','vit_k_mcg','vit_b1_mg','vit_b2_mg','vit_b3_mg','vit_b6_mg','vit_b9_mcg','vit_b12_mcg'],
-  usda:      ['cholesterol_mg','trans_fat_g','omega3_g','omega6_g','phosphorus_mg','selenium_mcg','copper_mg','manganese_mg'],
-};
-const TAB_LABELS = {macros:'Macros',glucides:'Glucides',lipides:'Lipides',micro:'Micro',vitamines:'Vitamines',usda:'USDA +'};
-
-function nutrFields(section) {
+function nutrFieldsHTML(section) {
   return (GROUPS[section]||[]).map(f => {
     const [label, unit] = LABELS[f];
-    return `<div class="nutr-field"><label>${label} <span class="nutr-unit">${unit}</span></label>
-      <input class="form-control form-control-sm nutr-input" name="ing_${f}" data-field="${f}"
-             type="number" min="0" step="any" placeholder="—"></div>`;
+    return `<div class="col-6 col-md-3 mb-2">
+              <label class="form-label small fw-bold text-muted mb-1">${label} <span class="text-secondary fw-normal">${unit}</span></label>
+              <input class="form-control form-control-sm bg-light border-0 shadow-sm nutr-input" name="ing_${f}" data-field="${f}" type="number" min="0" step="any" placeholder="—">
+            </div>`;
   }).join('');
 }
 
 function buildRow() {
   const secs = Object.keys(GROUPS);
-  const block = document.createElement('div'); block.className = 'ing-block';
+  const block = document.createElement('div'); 
+  block.className = 'ing-block bg-white border rounded-4 p-3 mb-3 shadow-sm';
+  
+  // HTML parfaitement synchronisé avec le template Jinja
   block.innerHTML = `
-    <div class="ing-row-main">
-      <div class="off-search-wrap">
-        <input class="form-control form-control-sm off-name-input" name="ing_name" placeholder="ex. Farine, Eple..." autocomplete="off">
-        <div class="off-dropdown" style="display:none"></div>
+    <div class="row g-2 align-items-center mb-2 position-relative">
+      <div class="col-12 col-md-5">
+        <input class="form-control bg-light border-0 shadow-sm off-name-input fw-bold" name="ing_name" placeholder="ex. Farine, Eple..." autocomplete="off">
+        <div class="off-dropdown list-group position-absolute w-100 shadow rounded-3 mt-1" style="display:none; z-index: 1000; max-height: 250px; overflow-y: auto;"></div>
       </div>
-      <div class="ing-source-toggle" title="Brut = USDA (rapide) · Marque = Open Food Facts">
-        <button type="button" class="src-btn src-usda active" data-source="usda">🥦 Brut</button>
-        <button type="button" class="src-btn src-off" data-source="off">🏷️ Marque</button>
+      <div class="col-6 col-md-2">
+        <div class="btn-group btn-group-sm w-100 shadow-sm ing-source-toggle" role="group">
+          <button type="button" class="btn btn-outline-success src-btn src-usda active" data-source="usda" title="Brut (USDA)">🥦 Brut</button>
+          <button type="button" class="btn btn-outline-primary src-btn src-off" data-source="off" title="Marque (Open Food Facts)">🏷️ Marque</button>
+        </div>
       </div>
-      <input class="form-control form-control-sm ing-qty-input" name="ing_qty" placeholder="100" type="number" min="0" step="any">
-      <select class="form-select form-select-sm ing-unit-input" name="ing_unit" style="min-width: 80px;">
-        <optgroup label="Poids">
-          <option value="g" selected>g</option>
-          <option value="kg">kg</option>
-        </optgroup>
-        <optgroup label="Volume">
-          <option value="ml">ml</option>
-          <option value="cl">cl</option>
-          <option value="cas">c.à.s</option>
-          <option value="cac">c.à.c</option>
-        </optgroup>
-        <optgroup label="Unités">
-          <option value="pièce">pièce</option>
-          <option value="gousse">gousse (ail)</option>
-          <option value="oignon">oignon</option>
-          <option value="pincée">pincée</option>
-        </optgroup>
-      </select>
-      <button type="button" class="btn-nutr-toggle" title="Nutrition"><i class="bi bi-bar-chart-line"></i></button>
-      <button type="button" class="btn-remove-ing"><i class="bi bi-x-lg"></i></button>
+      <div class="col-6 col-md-2 d-flex gap-1">
+        <input class="form-control form-control-sm bg-light border-0 shadow-sm ing-qty-input text-end fw-bold text-accent" name="ing_qty" placeholder="100" type="number" min="0" step="any">
+        <select class="form-select form-select-sm bg-light border-0 shadow-sm ing-unit-input" name="ing_unit">
+          <option value="g" selected>g</option><option value="kg">kg</option><option value="ml">ml</option>
+          <option value="cas">c.à.s</option><option value="pièce">pièce</option><option value="pincée">pincée</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-3 d-flex justify-content-end gap-2">
+        <button type="button" class="btn btn-sm btn-light border shadow-sm btn-nutr-toggle w-100 d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-bar-chart-line text-primary"></i> Nutrition</span>
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-danger border-0 btn-remove-ing"><i class="bi bi-trash-fill"></i></button>
+      </div>
     </div>
-    <div class="ing-nutr-panel hidden">
-      <div class="off-source-row" style="display:none">
-        <span class="off-source-badge"><i class="bi bi-database-fill-check"></i> USDA</span>
-        <span class="off-source-product"></span><span class="off-scale-note"></span>
-        <button type="button" class="off-clear-btn"><i class="bi bi-x-circle"></i> Effacer</button>
+    
+    <div class="ing-nutr-panel bg-light p-3 rounded-3 mt-3 d-none">
+      <div class="off-source-row alert alert-success py-1 px-2 mb-3 d-flex justify-content-between align-items-center" style="display:none !important;">
+        <div><span class="badge bg-success off-source-badge me-2"><i class="bi bi-database-fill-check"></i> USDA</span>
+        <strong class="off-source-product small"></strong> <span class="off-scale-note small text-muted ms-2"></span></div>
+        <button type="button" class="btn btn-link text-danger p-0 text-decoration-none small off-clear-btn"><i class="bi bi-x-circle"></i> Effacer</button>
       </div>
-      <div class="nutr-section-tabs">${secs.map((s,i)=>`<button type="button" class="nutr-tab${i===0?' active':''}${s==='usda'?' nutr-tab-usda':''}" data-section="${s}">${TAB_LABELS[s]}</button>`).join('')}</div>
-      ${secs.map((s,i)=>`<div class="nutr-section${i===0?' active':''}" data-section="${s}"><div class="nutr-grid-4">${nutrFields(s)}</div></div>`).join('')}
-      <div class="nutr-hint">Valeurs pour la quantité indiquée. Laisser vide = non renseigné.</div>
+      
+      <ul class="nav nav-pills nav-sm mb-3 nutr-section-tabs gap-1">
+        ${secs.map((s,i)=>`<li class="nav-item"><button type="button" class="nav-link py-1 px-3 nutr-tab ${i===0?'active bg-primary text-white':''} ${s==='usda'?'text-warning':''}" data-section="${s}">${TAB_LABELS[s]}</button></li>`).join('')}
+      </ul>
+      
+      ${secs.map((s,i)=>`<div class="nutr-section ${i===0?'active':'d-none'}" data-section="${s}"><div class="row">${nutrFieldsHTML(s)}</div></div>`).join('')}
+      <small class="text-muted fst-italic">Valeurs pour la quantité indiquée ci-dessus. Modifiables manuellement.</small>
     </div>`;
-  wireRow(block); return block;
-}
-
-function showToast(msg, type='info') {
-  const t = document.createElement('div');
-  t.className = `off-toast off-toast-${type}`; t.textContent = msg;
-  document.body.appendChild(t);
-  requestAnimationFrame(() => t.classList.add('show'));
-  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 3500);
+    
+  wireRow(block); 
+  return block;
 }
 
 // ── INITIALISATION POUR LES RECETTES EXISTANTES ──
@@ -547,10 +487,7 @@ document.querySelectorAll('.ing-block').forEach(block => {
       let hasData = false;
       block.querySelectorAll('.nutr-input').forEach(inp => {
         const val = parseFloat(inp.value);
-        if (!isNaN(val)) {
-          per100g[inp.dataset.field] = val / scale;
-          hasData = true;
-        }
+        if (!isNaN(val)) { per100g[inp.dataset.field] = val / scale; hasData = true; }
       });
       if (hasData) block.dataset.per100g = JSON.stringify(per100g);
     }
@@ -559,7 +496,9 @@ document.querySelectorAll('.ing-block').forEach(block => {
 });
 
 document.getElementById('addIng').addEventListener('click', () => {
-  const r = buildRow(); document.getElementById('ingList').appendChild(r); r.querySelector('input').focus();
+  const r = buildRow(); 
+  document.getElementById('ingList').appendChild(r); 
+  r.querySelector('input').focus();
 });
 </script>
 {% endblock %}

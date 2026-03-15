@@ -2,14 +2,16 @@
 app.py — Flask web application for Recipe Book.
 Run with: python3 app.py  →  http://localhost:5000
 """
+
+import os
 from datetime import date
 from flask import Flask, request, redirect, url_for
 from flask_login import LoginManager, current_user
 
 # Imports de la base et DB
 import db, crud, pricing_db
-from db import NUTRIENT_LABELS, RDI, MACRO_FIELDS, CARB_FIELDS, FAT_FIELDS, MICRO_FIELDS, VITAMIN_FIELDS, USDA_FIELDS
-from models import MEAL_TYPES
+from constants import MEAL_TYPES, NUTRIENT_LABELS, RDI, MACRO_FIELDS, CARB_FIELDS, FAT_FIELDS, MICRO_FIELDS, VITAMIN_FIELDS, USDA_FIELDS
+from utils import _f
 
 # Imports des Blueprints
 from routes.auth import auth_bp
@@ -19,7 +21,7 @@ from routes.planning import planning_bp
 from routes.library import library_bp
 
 app = Flask(__name__)
-app.secret_key = "recipe-book-secret"
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-super-secret-key-pour-localhost")
 
 # ── Configuration de la Sécurité (Flask-Login) ──────────────────────────────
 login_manager = LoginManager()
@@ -61,4 +63,6 @@ app.jinja_env.globals.update(
 
 if __name__ == "__main__":
     print("\n🍽  Capynutri running...")
-    app.run(host="0.0.0.0", debug=True, port=5000)
+    # debug sera True sur ton PC, mais False en production si on le configure
+    is_debug = os.environ.get("FLASK_ENV") != "production"
+    app.run(host="0.0.0.0", debug=is_debug, port=5000)
