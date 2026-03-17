@@ -15,7 +15,15 @@
 
 {% set net_kcal = (totals.kcal or 0) - burned %}
 {% set pct_kcal = [((totals.kcal or 0) / current_goal * 100), 100]|min %}
-{% set remaining = current_goal - (totals.kcal or 0) + burned %}
+{% set baseline = rest_k %}
+{% set sport_bonus = (train_k - rest_k) if is_active else 0 %}
+{# On prend le maximum entre le bonus théorique et les calories réellement brûlées #}
+{% set effective_bonus = [sport_bonus, burned]|max %}
+{% set current_budget = baseline + effective_bonus %}
+
+{% set net_kcal = (totals.kcal or 0) - burned %}
+{% set pct_kcal = [((totals.kcal or 0) / current_budget * 100), 100]|min %}
+{% set remaining = current_budget - (totals.kcal or 0) %}
 
 {% macro nutrient_progress(field, val, goal, color_hex, is_micro=false) %}
   {% set label, unit = NUTRIENT_LABELS[field] %}
@@ -25,13 +33,13 @@
       <span class="small fw-bold text-secondary">{{ label }}</span>
       <span class="small fw-bold">
         <span style="color: {{ color_hex }}">{{ val|round(1) }}</span> 
-        <span class="text-muted fw-normal">/ {{ goal|int }}{{ unit }}</span>
+        <span class="text-muted fw-normal">/ <span id="text-goal-{{ field }}">{{ goal|int }}</span>{{ unit }}</span>
       </span>
     </div>
     <div class="progress" style="height: 8px; border-radius: 10px; background-color: #f0f3f5;">
       {% set bar_color = '#e53935' if (val > goal and not is_micro) else color_hex %}
-      <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" 
-           style="width: {{ pct }}%; background-color: {{ bar_color }};"></div>
+      <div class="progress-bar progress-bar-striped progress-bar-animated" id="bar-{{ field }}" role="progressbar" 
+           style="width: {{ pct }}%; background-color: {{ bar_color }}; transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s;"></div>
     </div>
   </div>
 {% endmacro %}
@@ -49,28 +57,97 @@
     <a href="{{ url_for('tracking.dashboard', date_str=next_day) }}" class="btn btn-light rounded-circle shadow-sm"><i class="bi bi-chevron-right"></i></a>
   </div>
 
-  <div class="d-flex align-items-center gap-2">
-      <div id="dashboard-data" 
-           data-consumed="{{ totals.kcal or 0 }}" 
-           data-rest-goal="{{ rest_k }}" 
-           data-train-goal="{{ train_k }}"
-           data-date="{{ date_str }}">
-      </div>
-           
-      <div class="form-check form-switch d-flex align-items-center gap-2 bg-white px-3 py-2 rounded-pill shadow-sm border mb-0">
-          <input class="form-check-input mt-0" type="checkbox" role="switch" id="activeDayToggle" style="cursor: pointer;" {% if is_active %}checked{% endif %}>
-          <label class="form-check-label small fw-bold text-dark mb-0" for="activeDayToggle" style="cursor: pointer;" id="activeDayLabel">
-              {% if is_active %}
-                  <i class="bi bi-lightning-charge-fill text-warning"></i> Entraînement
-              {% else %}
-                  <i class="bi bi-cup-hot-fill text-muted"></i> Repos
-              {% endif %}
-          </label>
-      </div>
+  <style>
+  /* Design Premium type iOS pour l'interrupteur */
+  .premium-toggle {
+    position: relative;
+    display: inline-flex;
+    background: #f0f3f5;
+    border-radius: 50px;
+    padding: 4px;
+    cursor: pointer;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+    /* On fixe une largeur minimum pour éviter que les mots redimensionnent le bouton */
+    min-width: 240px; 
+  }
+  .premium-toggle input { display: none; }
+  
+  .premium-toggle .slider {
+    position: absolute;
+    top: 4px; bottom: 4px; left: 4px;
+    width: calc(50% - 4px);
+    background: white;
+    border-radius: 50px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1), background-color 0.3s;
+  }
+  
+  .premium-toggle input:checked ~ .slider {
+    transform: translateX(100%);
+    background: #fff8e1; /* Légère teinte dorée pour le sport */
+  }
+  
+  .premium-toggle .option {
+    position: relative;
+    z-index: 1;
+    flex: 1; /* Chaque moitié prend exactement 50% */
+    
+    /* Le secret pour aligner parfaitement l'icône et le texte */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #95a5a6;
+    transition: color 0.3s;
+    user-select: none;
+  }
+  
+  .premium-toggle input:not(:checked) ~ .option.repos { color: #2c3e50; }
+  .premium-toggle input:checked ~ .option.sport { color: #d35400; }
+</style>
 
-      <a href="{{ url_for('planning.week_view') }}" class="btn btn-outline-dark rounded-pill shadow-sm d-none d-md-block">
-        <i class="bi bi-calendar3-week"></i> Vue Semaine
-      </a>
+  {% set p_rest = goals.rest.protein_g if goals.rest else (goals.protein_g or 100) %}
+  {% set p_train = goals.training.protein_g if goals.training else (goals.protein_g or 100) %}
+  {% set c_rest = goals.rest.carbs_g if goals.rest else (goals.carbs_g or 200) %}
+  {% set c_train = goals.training.carbs_g if goals.training else (goals.carbs_g or 200) %}
+  {% set f_rest = goals.rest.fat_g if goals.rest else (goals.fat_g or 60) %}
+  {% set f_train = goals.training.fat_g if goals.training else (goals.fat_g or 60) %}
+
+  <div id="dashboard-data" 
+        data-consumed="{{ totals.kcal or 0 }}" 
+        data-burned="{{ burned or 0 }}"
+        data-rest-goal="{{ rest_k }}" 
+        data-train-goal="{{ train_k }}"
+        data-val-p="{{ totals.protein_g or 0 }}"
+        data-rest-p="{{ p_rest }}"
+        data-train-p="{{ p_train }}"
+        data-val-c="{{ totals.carbs_g or 0 }}"
+        data-rest-c="{{ c_rest }}"
+        data-train-c="{{ c_train }}"
+        data-val-f="{{ totals.fat_g or 0 }}"
+        data-rest-f="{{ f_rest }}"
+        data-train-f="{{ f_train }}"
+        data-val-fiber="{{ totals.fiber_g or 0 }}"
+        data-rest-fiber="{{ (rest_k / 1000 * 14)|round(1) }}"
+        data-train-fiber="{{ (train_k / 1000 * 14)|round(1) }}"
+        data-date="{{ date_str }}">
+        
+        <label class="premium-toggle mb-0 {{ 'opacity-75' if exercise else '' }}" 
+              id="activeDayToggleWrapper" 
+              title="{{ 'Mode Sport verrouillé car une séance est loggée' if exercise else '' }}">
+              
+            <input type="checkbox" id="activeDayToggle" 
+                  {% if is_active or exercise %}checked{% endif %}
+                  {% if exercise %}disabled{% endif %}>
+                  
+            <div class="slider"></div>
+            <div class="option repos"><i class="bi bi-cup-hot-fill"></i> Repos</div>
+            <div class="option sport"><i class="bi bi-lightning-charge-fill"></i> Sport</div>
+        </label>
   </div>
 </div>
 
@@ -123,7 +200,9 @@
       <div class="row g-3">
         {% for field in ['sugars_g', 'fiber_g', 'saturated_g', 'sodium_mg'] %}
           <div class="col-sm-6">
-            {{ nutrient_progress(field, (totals.get(field) or 0), RDI.get(field, 1), '#95a5a6') }}
+            {% set micro_goal = (current_goal / 1000 * 14) if field == 'fiber_g' else RDI.get(field, 1) %}
+            
+            {{ nutrient_progress(field, (totals.get(field) or 0), micro_goal, '#95a5a6') }}
           </div>
         {% endfor %}
       </div>
@@ -242,7 +321,7 @@
 
   <div class="col-lg-5 d-flex flex-column gap-4">
 
-    <div class="panel border-0 shadow-sm rounded-4 p-4">
+    <div class="panel border-0 shadow-sm rounded-4 p-4 bg-white">
       <div class="d-flex justify-content-between align-items-center mb-4">
         <h5 class="fw-bold text-secondary mb-0"><i class="bi bi-lightning-charge-fill text-warning"></i> Exercice</h5>
         <button class="btn btn-sm btn-outline-dark rounded-circle shadow-sm" data-bs-toggle="collapse" data-bs-target="#addExPanel">
@@ -251,42 +330,95 @@
       </div>
 
       <div class="collapse mb-3" id="addExPanel">
-        <div class="card card-body bg-light border-0 rounded-4 shadow-sm">
-          <form method="post" action="{{ url_for('tracking.log_exercise_add') }}" class="row g-2">
+        <div class="card card-body bg-light border-0 rounded-4 shadow-sm p-3">
+          <form method="post" action="{{ url_for('tracking.log_exercise_add') }}" class="row g-3">
             <input type="hidden" name="date_str" value="{{ date_str }}">
-            <div class="col-12"><input class="form-control border-0 shadow-sm" name="name" placeholder="ex. Course à pied..." required></div>
-            <div class="col-6">
-              <input class="form-control border-0 shadow-sm" name="kcal_burned" type="number" min="0" placeholder="Kcal" required>
+            
+            <div class="col-12">
+              <input class="form-control border-0 shadow-sm mb-2" name="name" placeholder="ex. Course à pied, Séance Dos..." required>
+              
+              <div class="btn-group w-100 shadow-sm" role="group">
+                <input type="radio" class="btn-check" name="exercise_type" id="typeCardio" value="cardio" checked>
+                <label class="btn btn-outline-danger small fw-bold py-1" for="typeCardio"><i class="bi bi-heart-pulse"></i> Cardio</label>
+
+                <input type="radio" class="btn-check" name="exercise_type" id="typeMuscu" value="musculation">
+                <label class="btn btn-outline-primary small fw-bold py-1" for="typeMuscu"><i class="bi bi-align-bottom"></i> Muscu</label>
+
+                <input type="radio" class="btn-check" name="exercise_type" id="typeRecup" value="recuperation">
+                <label class="btn btn-outline-success small fw-bold py-1" for="typeRecup"><i class="bi bi-yin-yang"></i> Récup</label>
+              </div>
             </div>
-            <div class="col-6">
-              <input class="form-control border-0 shadow-sm" name="duration_min" type="number" min="0" placeholder="Minutes">
+
+            <div class="col-12 mt-2">
+              <label class="form-label small fw-bold text-muted d-flex justify-content-between mb-1">
+                <span>Intensité de l'effort</span>
+                <span id="rpeValueDisplay" class="badge bg-warning text-dark">RPE 5 : Modéré</span>
+              </label>
+              <input type="range" class="form-range" name="rpe" id="rpeSlider" min="1" max="10" step="1" value="5">
             </div>
-            <div class="col-12"><button class="btn btn-dark w-100 rounded-pill fw-bold shadow-sm" type="submit">Ajouter</button></div>
+
+            <div class="col-12 mt-2">
+              <div class="input-group shadow-sm">
+                <span class="input-group-text bg-white border-0 text-accent"><i class="bi bi-stopwatch"></i></span>
+                <input class="form-control border-0" name="duration_min" type="number" min="1" placeholder="Durée en minutes..." required>
+              </div>
+            </div>
+            
+            <div class="col-12 mt-2">
+              <button class="btn btn-dark w-100 rounded-pill fw-bold shadow-sm" type="submit">Enregistrer la séance</button>
+            </div>
           </form>
         </div>
       </div>
 
       {% if exercise %}
-        <div class="list-group list-group-flush mb-2">
+        <div class="list-group list-group-flush mb-2 mt-3">
           {% for ex in exercise %}
-            <div class="list-group-item d-flex justify-content-between align-items-center border-0 bg-light rounded-3 mb-2 shadow-sm">
+            <div class="list-group-item d-flex justify-content-between align-items-center border-0 bg-light rounded-3 mb-2 shadow-sm p-3">
               <div>
-                <i class="bi bi-fire text-warning me-2"></i><span class="fw-bold">{{ ex.name }}</span>
-                {% if ex.duration_min %}<span class="text-muted small ms-2">{{ ex.duration_min }} min</span>{% endif %}
+                {% if ex.exercise_type == 'musculation' %}
+                  <i class="bi bi-align-bottom text-primary me-2"></i>
+                {% elif ex.exercise_type == 'recuperation' %}
+                  <i class="bi bi-yin-yang text-success me-2"></i>
+                {% else %}
+                  <i class="bi bi-heart-pulse text-danger me-2"></i>
+                {% endif %}
+                
+                <span class="fw-bold text-dark">{{ ex.name }}</span>
+                
+                <div class="d-flex gap-2 align-items-center mt-2">
+                  {% if ex.duration_min %}
+                    <span class="badge bg-white text-muted border"><i class="bi bi-stopwatch"></i> {{ ex.duration_min }} min</span>
+                  {% endif %}
+                  
+                  {% set rpe_color = 'success' if ex.rpe <= 4 else ('warning text-dark' if ex.rpe <= 7 else 'danger') %}
+                  <span class="badge bg-{{ rpe_color }} shadow-sm" title="Rate of Perceived Exertion">RPE {{ ex.rpe }}/10</span>
+                </div>
               </div>
-              <div class="d-flex align-items-center gap-2">
-                <span class="fw-bold text-warning">−{{ ex.kcal_burned|int }} kcal</span>
+              
+              <div class="d-flex align-items-center gap-3">
+                <span class="fw-bold text-accent fs-5">−{{ ex.kcal_burned|int }} <span class="fs-6 text-muted">kcal</span></span>
                 <form method="post" action="{{ url_for('tracking.log_exercise_delete', entry_id=ex.id) }}">
                   <input type="hidden" name="date_str" value="{{ date_str }}">
-                  <button type="submit" class="btn btn-sm btn-link text-danger p-0"><i class="bi bi-x-circle-fill"></i></button>
+                  <button type="submit" class="btn btn-sm btn-link text-danger p-0"><i class="bi bi-trash-fill fs-5"></i></button>
                 </form>
               </div>
             </div>
           {% endfor %}
         </div>
-        <div class="text-end small fw-bold text-muted">Total brûlé : {{ burned|int }} kcal</div>
+        
+        <div class="text-end mt-3 border-top pt-3">
+          <div class="fw-bold text-dark mb-1">Total estimé : <span class="text-accent">{{ burned|int }} kcal</span></div>
+          <div class="small text-muted" style="font-size: 0.7rem; line-height: 1.2;">
+            <i class="bi bi-info-circle"></i> Valeur théorique calculée via l'indice MET, basée sur votre poids ({{ profile.weight_kg|int if profile.weight_kg else 70 }}kg), la durée et l'intensité déclarée.
+          </div>
+        </div>
+        
       {% else %}
-        <div class="text-center py-3 text-muted small">Aucun exercice enregistré.</div>
+        <div class="text-center py-4 text-muted small bg-light rounded-4 border-dashed mt-3">
+          <i class="bi bi-activity fs-3 d-block mb-2 text-secondary opacity-50"></i>
+          Aucun exercice enregistré.
+        </div>
       {% endif %}
     </div>
 

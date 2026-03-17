@@ -7,7 +7,7 @@ import unicodedata
 import re
 
 from db import get_connection
-from models import Recipe, Ingredient, UserProfile, FoodLogEntry, ExerciseEntry, User
+from models import Recipe, Ingredient, UserProfile, FoodLogEntry, ExerciseEntry, User, BodyTrackingEntry
 from constants import NUTRIENT_FIELDS, MEAL_TYPES
 
 from utils import normalize_string
@@ -244,17 +244,27 @@ def get_food_log_entry(user_id: int, entry_id: int) -> Optional[FoodLogEntry]:
 
 # ── 6. Exercise Log ───────────────────────────────────────────────────────────
 
-def add_exercise(user_id: int, entry: ExerciseEntry) -> int:
+def add_exercise(user_id: int, entry: ExerciseEntry) -> None:
+    """Ajoute un exercice au journal."""
     with get_connection() as conn:
-        return conn.execute(
-            "INSERT INTO exercise_log (user_id, log_date, name, kcal_burned, duration_min) VALUES (?,?,?,?,?)",
-            (user_id, entry.log_date, entry.name, entry.kcal_burned, entry.duration_min)
-        ).lastrowid
+        conn.execute("""
+            INSERT INTO exercise_log (user_id, log_date, name, kcal_burned, duration_min, rpe, exercise_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, entry.log_date, entry.name, entry.kcal_burned, entry.duration_min, entry.rpe, entry.exercise_type))
 
 def get_exercise_day(user_id: int, date_str: str) -> list[ExerciseEntry]:
+    """Récupère les exercices d'une journée."""
     with get_connection() as conn:
-        rows = conn.execute("SELECT * FROM exercise_log WHERE user_id=? AND log_date=?", (user_id, date_str)).fetchall()
-        return [ExerciseEntry(**{k: v for k, v in dict(r).items() if k not in ["id", "user_id"]}) for r in rows]
+        rows = conn.execute("SELECT * FROM exercise_log WHERE user_id = ? AND log_date = ?", (user_id, date_str)).fetchall()
+        return [ExerciseEntry(
+            id=r["id"],
+            log_date=r["log_date"],
+            name=r["name"],
+            kcal_burned=r["kcal_burned"],
+            duration_min=r["duration_min"],
+            rpe=r["rpe"],                      # NOUVEAU
+            exercise_type=r["exercise_type"]   # NOUVEAU
+        ) for r in rows]
 
 def delete_exercise(user_id: int, entry_id: int) -> bool:
     with get_connection() as conn:
@@ -395,28 +405,49 @@ def mark_plan_logged(user_id: int, plan_id: int) -> None:
 def get_week_dashboard(user_id: int, start_date: str) -> dict:
     from datetime import datetime, timedelta
     with get_connection() as conn:
-        rows = conn.execute("""
+        # 1. On récupère les repas loggés
+        food_rows = conn.execute("""
             SELECT log_date AS plan_date, meal_type, id AS plan_id, 1 AS is_logged, recipe_id, label AS recipe_name, servings,
                    kcal AS total_kcal, protein_g AS total_protein_g, carbs_g AS total_carbs_g, fat_g AS total_fat_g, fiber_g AS total_fiber_g, 0 AS total_iron_mg
-            FROM food_log WHERE user_id = ? AND log_date >= ? AND log_date < date(?, '+7 days')
+            FROM food_log 
+            WHERE user_id = ? AND log_date >= ? AND log_date < date(?, '+7 days')
         """, (user_id, start_date, start_date)).fetchall()
 
+        # 2. NOUVEAU : On récupère les exercices loggés
+        ex_rows = conn.execute("""
+            SELECT log_date, SUM(kcal_burned) as total_burned
+            FROM exercise_log
+            WHERE user_id = ? AND log_date >= ? AND log_date < date(?, '+7 days')
+            GROUP BY log_date
+        """, (user_id, start_date, start_date)).fetchall()
+
+    # Initialisation de la structure de la semaine
     start = datetime.strptime(start_date, "%Y-%m-%d").date()
     week_plan = {}
     for i in range(7):
         d_str = (start + timedelta(days=i)).isoformat()
         week_plan[d_str] = {
             "meals": {t: None for t in MEAL_TYPES},
-            "daily_totals": {"kcal": 0.0, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0, "fiber_g": 0.0, "iron_mg": 0.0}
+            # Ajout de "burned": 0.0 ici pour éviter l'UndefinedError dans Jinja
+            "daily_totals": {"kcal": 0.0, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0, "fiber_g": 0.0, "iron_mg": 0.0, "burned": 0.0}
         }
 
-    for r in rows:
+    # Remplissage avec les données de nourriture
+    for r in food_rows:
         d_str = r["plan_date"]
         if d_str in week_plan:
             meal = dict(r)
             week_plan[d_str]["meals"][meal["meal_type"]] = meal
             for k in ["kcal", "protein_g", "carbs_g", "fat_g", "fiber_g", "iron_mg"]:
-                if meal.get(f"total_{k}"): week_plan[d_str]["daily_totals"][k] += meal[f"total_{k}"]
+                if meal.get(f"total_{k}"): 
+                    week_plan[d_str]["daily_totals"][k] += meal[f"total_{k}"]
+
+    # NOUVEAU : Remplissage avec les données d'exercice
+    for r in ex_rows:
+        d_str = r["log_date"]
+        if d_str in week_plan:
+            week_plan[d_str]["daily_totals"]["burned"] = float(r["total_burned"] or 0.0)
+
     return week_plan
 
 def get_week_shopping_list(user_id: int, start_date: str) -> dict:
@@ -603,3 +634,41 @@ def get_week_active_status(user_id: int, start_date: str) -> dict:
             # Si la table n'existe pas encore ou qu'il y a un souci de lecture,
             # on renvoie un dictionnaire vide (tous les jours seront considérés inactifs)
             return {}
+        
+
+def log_body_metrics(user_id: int, date_str: str, weight: float = None, bf: float = None) -> None:
+    """Ajoute ou met à jour la pesée et le bodyfat pour un jour donné."""
+    with get_connection() as conn:
+        # On utilise UPSERT (INSERT ... ON CONFLICT) pour écraser si on se repèse le même jour
+        conn.execute("""
+            INSERT INTO body_tracking (user_id, date_str, weight_kg, bf_pct)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(user_id, date_str) DO UPDATE SET
+                weight_kg = excluded.weight_kg,
+                bf_pct = excluded.bf_pct
+        """, (user_id, date_str, weight, bf))
+        
+        # Optionnel mais recommandé : on met aussi à jour le profil global de l'utilisateur
+        # pour que les macros (Katch-McArdle) s'ajustent avec son nouveau poids !
+        if weight is not None:
+            conn.execute("UPDATE user_profile SET weight_kg = ? WHERE id = ?", (weight, user_id))
+        if bf is not None:
+            conn.execute("UPDATE user_profile SET current_bf_pct = ? WHERE id = ?", (bf, user_id))
+
+def get_body_history(user_id: int, limit: int = 30) -> list[BodyTrackingEntry]:
+    """Récupère l'historique des pesées, trié chronologiquement pour les graphiques."""
+    with get_connection() as conn:
+        rows = conn.execute("""
+            SELECT id, date_str, weight_kg, bf_pct 
+            FROM body_tracking 
+            WHERE user_id = ? 
+            ORDER BY date_str ASC
+            LIMIT ?
+        """, (user_id, limit)).fetchall()
+        
+        return [BodyTrackingEntry(
+            id=r["id"],
+            log_date=r["date_str"],
+            weight_kg=r["weight_kg"],
+            bf_pct=r["bf_pct"]
+        ) for r in rows]

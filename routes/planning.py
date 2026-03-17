@@ -49,48 +49,6 @@ def week_view(start=None):
     return render_template("week_plan.html", days=days_display, goals=goals, active_statuses=active_statuses, prev_week=prev_week, next_week=next_week, week_label=week_label)
 
 
-# ── 2. LES STATISTIQUES (Bilan Analytique) ──
-@planning_bp.route("/week_stats")
-@planning_bp.route("/week_stats/<start>")
-@login_required
-def week_stats(start=None):
-    if start is None:
-        today = date.today()
-        start = (today - timedelta(days=today.weekday())).isoformat()
-        
-    start_d = date.fromisoformat(start)
-    prev_week = (start_d - timedelta(days=7)).isoformat()
-    next_week = (start_d + timedelta(days=7)).isoformat()
-
-    week_plan = crud.get_week_dashboard(current_user.id, start)
-    profile = crud.get_profile(current_user.id)
-    goals = get_effective_goals(profile)
-
-    days_stats = []
-    jours_fr = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
-    
-    # On reformate les données spécialement pour les graphiques CSS
-    for i in range(7):
-        d_obj = start_d + timedelta(days=i)
-        d_str = d_obj.isoformat()
-        dt = week_plan[d_str]["daily_totals"]
-        days_stats.append({
-            "date": d_str,
-            "label": f"{jours_fr[d_obj.weekday()]} {d_obj.day}",
-            "kcal": dt.get("kcal", 0),
-            "burned": dt.get("burned", 0), # Si tu as un système de calories brûlées
-            "protein_g": dt.get("protein_g", 0),
-            "carbs_g": dt.get("carbs_g", 0),
-            "fat_g": dt.get("fat_g", 0)
-        })
-
-    month_names = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
-    week_label = f"{start_d.day} {month_names[start_d.month-1]}"
-
-    # Renvoie vers le graphique CSS pur
-    return render_template("week.html", days=days_stats, goals=goals, prev_week=prev_week, next_week=next_week, start_label=week_label)
-
-
 # ── 3. LE RESTE DES ROUTES (Plan, Shopping, etc.) ──
 
 @planning_bp.route("/plan")

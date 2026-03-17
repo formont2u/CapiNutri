@@ -1,150 +1,203 @@
 {% extends "base.html" %}
-{% block title %}Planning Semaine — Capynutri{% endblock %}
+{% block title %}Planning Semaine — {{ week_label }}{% endblock %}
 
 {% block content %}
-
 <style>
-  .kanban-scroll {
-    overflow-x: auto;
-    padding-bottom: 1.5rem;
-    scrollbar-width: thin;
-    scrollbar-color: var(--accent) #f0f3f5;
-    scroll-snap-type: x mandatory;
-  }
-  .kanban-scroll::-webkit-scrollbar { height: 8px; }
-  .kanban-scroll::-webkit-scrollbar-track { background: #f0f3f5; border-radius: 10px; }
-  .kanban-scroll::-webkit-scrollbar-thumb { background-color: var(--accent); border-radius: 10px; }
-  
-  .kanban-col {
-    min-width: 320px;
-    width: 320px;
-    scroll-snap-align: start;
-  }
-  
-  /* Animation Premium pour les cartes repas */
-  .meal-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
-  .meal-card:hover { transform: translateY(-3px); box-shadow: 0 10px 25px rgba(0,0,0,0.08) !important; }
-  
-  /* Ligne de couleur en haut de la carte du jour */
-  .day-header { border-top: 5px solid #e2e2ea; }
-  .day-header.is-today { border-top-color: var(--accent); }
+    :root {
+        --card-radius: 20px;
+        --bg-sport: rgba(255, 107, 61, 0.05);
+    }
+
+    .kanban-scroll {
+        display: flex;
+        gap: 1.5rem;
+        overflow-x: auto;
+        padding: 1rem 0.5rem 2rem;
+        scrollbar-width: none; /* Cache la scrollbar sur Firefox */
+    }
+    .kanban-scroll::-webkit-scrollbar { display: none; } /* Cache sur Chrome/Safari */
+
+    .kanban-col {
+        min-width: 340px;
+        width: 340px;
+        scroll-snap-align: start;
+        border-radius: 28px;
+        transition: all 0.3s ease;
+    }
+    .kanban-col.is-sport { background-color: var(--bg-sport); }
+
+    /* Header du jour façon iOS */
+    .day-header {
+        border: none !important;
+        background: #ffffff;
+        margin-bottom: 1rem;
+    }
+    .date-circle {
+        width: 45px;
+        height: 45px;
+        border-radius: 14px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+    }
+    .date-circle.is-today { background: var(--accent); color: white; }
+    .date-circle.is-normal { background: #f0f3f5; color: #2c3e50; }
+
+    /* Cartes Repas */
+    .meal-card {
+        border: 1px solid rgba(0,0,0,0.04) !important;
+        margin-bottom: 0.75rem;
+        border-radius: var(--card-radius);
+    }
+    .meal-type-label {
+        font-size: 0.7rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #adb5bd;
+    }
+
+    /* Macros façon "Dots" */
+    .macro-row {
+        display: flex;
+        gap: 12px;
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid #f8f9fa;
+    }
+    .macro-item {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #495057;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .dot-p { background: #4a90e2; }
+    .dot-g { background: #f5a623; }
+    .dot-l { background: #e8571a; }
+
+    .btn-add-slot {
+        background: rgba(0,0,0,0.02);
+        border: 2px dashed #e9ecef !important;
+        border-radius: var(--card-radius);
+        color: #dee2e6;
+        padding: 15px;
+        transition: all 0.2s;
+    }
+    .btn-add-slot:hover {
+        background: #fff;
+        border-color: var(--accent) !important;
+        color: var(--accent);
+    }
 </style>
 
-<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3 pb-2 border-bottom">
-  <div class="d-flex align-items-center gap-3">
-    <a href="{{ url_for('planning.week_view', start=prev_week) }}" class="btn btn-light rounded-circle shadow-sm" title="Semaine précédente">
-      <i class="bi bi-chevron-left"></i>
-    </a>
-    <h2 class="mb-0 fw-bold text-dark d-flex align-items-center gap-2">
-      <i class="bi bi-calendar3-week text-accent"></i> {{ week_label }}
-    </h2>
-    <a href="{{ url_for('planning.week_view', start=next_week) }}" class="btn btn-light rounded-circle shadow-sm" title="Semaine suivante">
-      <i class="bi bi-chevron-right"></i>
-    </a>
-  </div>
-  
-  <a href="{{ url_for('planning.shopping_list', start=days[0].date) }}" class="btn btn-dark rounded-pill fw-bold shadow-sm px-4 d-flex align-items-center gap-2" style="background-color: #2c3e50;">
-    <i class="bi bi-cart3 text-accent"></i> Liste de courses
-  </a>
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 px-2">
+    <div>
+        <h2 class="fw-bold text-dark mb-0">{{ week_label }}</h2>
+        <p class="text-muted small mb-0">Organisez votre métabolisme hebdomadaire</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('planning.week_view', start=prev_week) }}" class="btn btn-white shadow-sm rounded-pill px-3"><i class="bi bi-chevron-left"></i></a>
+        <a href="{{ url_for('planning.week_view', start=next_week) }}" class="btn btn-white shadow-sm rounded-pill px-3"><i class="bi bi-chevron-right"></i></a>
+        <a href="{{ url_for('planning.shopping_list', start=days[0].date) }}" class="btn btn-dark rounded-pill px-4 ms-2 shadow-sm">
+            <i class="bi bi-cart3"></i> Liste
+        </a>
+    </div>
 </div>
 
-<div class="d-flex gap-3 kanban-scroll">
-  
-  {% for day in days %}
-    {% set dt = day.data.daily_totals %}
-    {% set is_active = active_statuses.get(day.date, False) %}
-    
-    {% if goals.training and goals.rest %}
-        {% set rest_k = goals.rest.kcal %}
-        {% set train_k = goals.training.kcal %}
-    {% else %}
-        {% set base_goal = goals.kcal or 2000 %}
-        {% set rest_k = base_goal %}
-        {% set train_k = base_goal + 400 %}
-    {% endif %}
-    
-    {% set current_goal = train_k if is_active else rest_k %}
-    {% set pct_k = [(dt.kcal / current_goal * 100), 100]|min %}
-
-  <div class="d-flex flex-column gap-3 kanban-col">
-    
-    <div class="card border-0 shadow-sm rounded-4 day-header {{ 'is-today bg-white' if day.is_today else 'bg-light' }}"
-         id="day-header-{{ day.date }}"
-         data-consumed="{{ dt.kcal }}"
-         data-rest-goal="{{ rest_k }}"
-         data-train-goal="{{ train_k }}">
-         
-      <div class="card-body p-3">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-          
-          <div class="d-flex align-items-center gap-2">
-            <h5 class="mb-0 fw-bold {{ 'text-accent' if day.is_today else 'text-dark' }}">{{ day.label }}</h5>
-            
-            <button class="btn btn-sm btn-light border rounded-circle shadow-sm btn-toggle-active" 
-                    data-date="{{ day.date }}" 
-                    data-active="{{ 'true' if is_active else 'false' }}"
-                    title="Basculer Entraînement / Repos"
-                    style="width: 32px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center;">
-                {% if is_active %}
-                    <i class="bi bi-lightning-charge-fill text-warning fs-6"></i>
-                {% else %}
-                    <i class="bi bi-cup-hot-fill text-muted fs-6"></i>
-                {% endif %}
-            </button>
-          </div>
-
-          <a href="{{ url_for('planning.meal_plan', date_str=day.date) }}" class="btn btn-sm btn-outline-secondary border-0 rounded-circle" title="Éditer cette journée">
-            <i class="bi bi-pencil-fill"></i>
-          </a>
-        </div>
+<div class="kanban-scroll">
+    {% for day in days %}
+        {% set dt = day.data.daily_totals %}
+        {% set is_active = active_statuses.get(day.date, False) %}
+        {% set burned = dt.get('burned', 0) %}
         
-        <div class="d-flex justify-content-between text-muted small fw-bold mb-1 mt-3" id="goal-text-{{ day.date }}">
-          <span><span class="{{ 'text-danger' if dt.kcal > current_goal else 'text-dark' }}">{{ dt.kcal|int }}</span> / {{ current_goal|int }} kcal</span>
-        </div>
-        <div class="progress mb-3" style="height: 6px; border-radius: 3px;">
-          <div class="progress-bar {{ 'bg-danger' if dt.kcal > current_goal else 'bg-success' }}" id="progress-bar-{{ day.date }}" style="width: {{ pct_k }}%; transition: width 0.4s ease, background-color 0.4s ease;"></div>
-        </div>
-      </div>
-    </div>
+        {# Budgeting Logic #}
+        {% if goals.training and goals.rest %}
+            {% set r_k = goals.rest.kcal %}{% set t_k = goals.training.kcal %}
+        {% else %}
+            {% set r_k = goals.kcal or 2000 %}{% set t_k = (goals.kcal or 2000) + 400 %}
+        {% endif %}
+        
+        {% set effective_bonus = [ (t_k - r_k) if is_active else 0, burned ]|max %}
+        {% set budget = r_k + effective_bonus %}
+        {% set pct = [(dt.kcal / budget * 100), 100]|min %}
 
-    {% for type_key, type_name in MEAL_TYPES.items() %}
-      {% set meal = day.data.meals[type_key] %}
-      
-      {% if meal %}
-        <div class="card border-0 shadow-sm rounded-4 meal-card bg-white position-relative">
-          <div class="card-body p-3">
-            <div class="text-uppercase small fw-bold text-muted mb-1" style="font-size: 0.7rem; letter-spacing: 0.5px;">{{ type_name }}</div>
-            <h6 class="fw-bold text-dark mb-2 text-truncate" title="{{ meal.recipe_name }}">{{ meal.recipe_name }}</h6>
+    <div class="kanban-col {{ 'is-sport' if is_active or burned > 0 else '' }} p-3">
+        
+        <div class="card day-header shadow-sm rounded-4 p-3" id="day-header-{{ day.date }}"
+             data-consumed="{{ dt.kcal }}" data-rest-goal="{{ r_k }}" data-train-goal="{{ t_k }}" data-burned="{{ burned }}">
             
-            <div class="d-flex gap-1 flex-wrap mt-2">
-              <span class="badge bg-light text-dark border small"><i class="bi bi-fire text-accent"></i> {{ meal.total_kcal|int if meal.total_kcal else 0 }}</span>
-              <span class="badge bg-light text-muted border small">P:{{ meal.total_protein_g|int if meal.total_protein_g else 0 }}</span>
-              <span class="badge bg-light text-muted border small">G:{{ meal.total_carbs_g|int if meal.total_carbs_g else 0 }}</span>
-              <span class="badge bg-light text-muted border small">L:{{ meal.total_fat_g|int if meal.total_fat_g else 0 }}</span>
+            <div class="d-flex justify-content-between align-items-start mb-3">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="date-circle {{ 'is-today shadow-sm' if day.is_today else 'is-normal' }}">
+                        <span style="font-size: 0.65rem; font-weight: 800; text-transform: uppercase;">{{ day.label.split(' ')[0][:3] }}</span>
+                        <span style="font-size: 1.1rem; font-weight: 800;">{{ day.label.split(' ')[1] }}</span>
+                    </div>
+                    <div>
+                        <h6 class="mb-0 fw-bold {{ 'text-accent' if day.is_today else '' }}">Budget Jour</h6>
+                        <span class="fw-bold" id="goal-text-{{ day.date }}" style="font-size: 0.9rem;">
+                            {{ dt.kcal|int }} <span class="text-muted opacity-50">/ {{ budget|int }}</span>
+                        </span>
+                    </div>
+                </div>
+
+                {% if burned > 0 %}
+                    <div class="btn btn-warning btn-sm rounded-circle p-0 d-flex align-items-center justify-content-center shadow-sm" style="width: 32px; height: 32px;" title="Sport loggé">
+                        <i class="bi bi-lightning-charge-fill"></i>
+                    </div>
+                {% else %}
+                    <button class="btn btn-sm {{ 'btn-warning' if is_active else 'btn-light' }} rounded-circle p-0 border btn-toggle-active shadow-sm" 
+                            data-date="{{ day.date }}" data-active="{{ 'true' if is_active else 'false' }}" style="width: 32px; height: 32px;">
+                        <i class="bi {{ 'bi-lightning-charge-fill' if is_active else 'bi-cup-hot' }}"></i>
+                    </button>
+                {% endif %}
             </div>
 
-            {% if meal.recipe_id %}
-              <a href="{{ url_for('recipes.view_recipe', recipe_id=meal.recipe_id) }}" class="stretched-link"></a>
-            {% endif %}
-          </div>
+            <div class="progress" style="height: 8px; border-radius: 20px; background: #f1f3f5;">
+                <div class="progress-bar {{ 'bg-danger' if dt.kcal > budget else 'bg-success' }}" 
+                     id="progress-bar-{{ day.date }}" style="width: {{ pct }}%; transition: 0.4s ease;"></div>
+            </div>
         </div>
-        
-      {% else %}
-        <a href="{{ url_for('planning.meal_plan', date_str=day.date) }}" class="card border-0 rounded-4 text-center text-decoration-none meal-card" style="border: 2px dashed #dee2e6 !important; background: transparent;">
-          <div class="card-body p-3 text-muted opacity-75">
-            <i class="bi bi-plus-circle fs-5 mb-1 d-block"></i>
-            <span class="small fw-bold text-uppercase">{{ type_name }}</span>
-          </div>
-        </a>
-      {% endif %}
-      
-    {% endfor %}
-    
-  </div>
-  {% endfor %}
-  
-</div>
 
+        <div class="d-flex flex-column gap-2">
+            {% for type_key, type_name in MEAL_TYPES.items() %}
+                {% set meal = day.data.meals[type_key] %}
+                {% if meal %}
+                    <div class="card meal-card shadow-sm bg-white position-relative">
+                        <div class="card-body p-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="meal-type-label">{{ type_name }}</span>
+                                <span class="badge rounded-pill bg-light text-dark fw-bold border" style="font-size: 0.7rem;">
+                                    {{ meal.total_kcal|int }} kcal
+                                </span>
+                            </div>
+                            <h6 class="fw-bold text-dark text-truncate mb-0" style="font-size: 0.95rem;">{{ meal.recipe_name }}</h6>
+                            
+                            <div class="macro-row">
+                                <div class="macro-item"><span class="dot dot-p"></span> {{ meal.total_protein_g|int }}g</div>
+                                <div class="macro-item"><span class="dot dot-g"></span> {{ meal.total_carbs_g|int }}g</div>
+                                <div class="macro-item"><span class="dot dot-l"></span> {{ meal.total_fat_g|int }}g</div>
+                            </div>
+                            {% if meal.recipe_id %}
+                                <a href="{{ url_for('recipes.view_recipe', recipe_id=meal.recipe_id) }}" class="stretched-link"></a>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% else %}
+                    <a href="{{ url_for('planning.meal_plan', date_str=day.date) }}" class="btn btn-add-slot d-flex flex-column align-items-center justify-content-center">
+                        <i class="bi bi-plus-circle-dotted mb-1 fs-5"></i>
+                        <span class="text-uppercase" style="font-size: 0.6rem; letter-spacing: 1px; font-weight: 800;">{{ type_name }}</span>
+                    </a>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -155,52 +208,41 @@ document.querySelectorAll('.btn-toggle-active').forEach(btn => {
         const currentlyActive = btn.dataset.active === 'true';
         const newState = !currentlyActive;
 
-        // 1. Animation visuelle du bouton
+        // Visual Feedback
         btn.dataset.active = newState;
-        btn.innerHTML = newState 
-            ? '<i class="bi bi-lightning-charge-fill text-warning fs-6"></i>' 
-            : '<i class="bi bi-cup-hot-fill text-muted fs-6"></i>';
+        btn.className = `btn btn-sm ${newState ? 'btn-warning' : 'btn-light'} rounded-circle p-0 border btn-toggle-active shadow-sm`;
+        btn.innerHTML = `<i class="bi ${newState ? 'bi-lightning-charge-fill' : 'bi-cup-hot'}"></i>`;
 
-        // 2. DOM UPDATE DYNAMIQUE (La vraie magie 🪄)
-        const headerCard = document.getElementById(`day-header-${dateStr}`);
-        if (headerCard) {
-            const consumed = parseFloat(headerCard.dataset.consumed);
-            const newGoal = parseFloat(newState ? headerCard.dataset.trainGoal : headerCard.dataset.restGoal);
-            const isOver = consumed > newGoal;
+        const header = document.getElementById(`day-header-${dateStr}`);
+        if (header) {
+            const consumed = parseFloat(header.dataset.consumed);
+            const burned = parseFloat(header.dataset.burned || 0);
+            const rG = parseFloat(header.dataset.restGoal);
+            const tG = parseFloat(header.dataset.trainGoal);
 
-            // Mise à jour du texte (ex: 2100 / 2400 kcal)
-            const goalText = document.getElementById(`goal-text-${dateStr}`);
-            goalText.innerHTML = `<span><span class="${isOver ? 'text-danger' : 'text-dark'}">${Math.round(consumed)}</span> / ${Math.round(newGoal)} kcal</span>`;
+            const bonus = newState ? (tG - rG) : 0;
+            const currentBudget = rG + Math.max(bonus, burned);
+            const isOver = consumed > currentBudget;
 
-            // Mise à jour de la barre (largeur et couleur)
-            const progressBar = document.getElementById(`progress-bar-${dateStr}`);
-            let newPct = (consumed / newGoal) * 100;
-            if (newPct > 100) newPct = 100;
+            // Update Text
+            const gText = document.getElementById(`goal-text-${dateStr}`);
+            gText.innerHTML = `${Math.round(consumed)} <span class="text-muted opacity-50">/ ${Math.round(currentBudget)}</span>`;
+
+            // Update Progress
+            const pBar = document.getElementById(`progress-bar-${dateStr}`);
+            pBar.style.width = `${Math.min((consumed/currentBudget)*100, 100)}%`;
+            pBar.className = `progress-bar ${isOver ? 'bg-danger' : 'bg-success'}`;
             
-            progressBar.style.width = `${newPct}%`;
-            progressBar.className = `progress-bar ${isOver ? 'bg-danger' : 'bg-success'}`;
+            header.closest('.kanban-col').classList.toggle('is-sport', newState || burned > 0);
         }
 
-        // 3. Sauvegarde silencieuse en base de données
         try {
-            const r = await fetch('/api/day/toggle_active', {
+            await fetch('/api/day/toggle_active', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ date: dateStr, is_active: newState })
             });
-            if (!r.ok) throw new Error();
-            
-            Swal.fire({
-                toast: true, position: 'top-end', showConfirmButton: false, timer: 1500,
-                icon: 'success', title: newState ? 'Objectifs Entraînement appliqués ⚡' : 'Objectifs Repos appliqués 🛋️'
-            });
-        } catch(e) {
-            btn.dataset.active = currentlyActive;
-            btn.innerHTML = currentlyActive 
-                ? '<i class="bi bi-lightning-charge-fill text-warning fs-6"></i>' 
-                : '<i class="bi bi-cup-hot-fill text-muted fs-6"></i>';
-            Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Erreur réseau', showConfirmButton: false, timer: 2000 });
-        }
+        } catch(e) { location.reload(); }
     });
 });
 </script>

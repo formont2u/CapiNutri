@@ -4,6 +4,7 @@
 {% block content %}
 
 <style>
+  /* Tes styles CSS originaux (intacts) */
   .css-chart { height: 200px; display: flex; align-items: flex-end; gap: 8px; position: relative; padding-bottom: 20px; border-bottom: 2px solid #f0f3f5; }
   .css-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; position: relative; z-index: 2; }
   .css-bar { width: 100%; max-width: 40px; background-color: var(--accent); border-radius: 6px 6px 0 0; min-height: 4px; transition: height 0.5s ease-out, background-color 0.3s; position: relative; cursor: pointer; }
@@ -28,12 +29,69 @@
   </div>
   
   <div class="d-flex gap-2 align-items-center">
-    <a href="{{ url_for('planning.week_stats', start=prev_week) }}" class="btn btn-light rounded-circle shadow-sm"><i class="bi bi-chevron-left"></i></a>
-    <a href="{{ url_for('planning.week_stats') }}" class="btn btn-outline-dark rounded-pill fw-bold shadow-sm px-3">Cette semaine</a>
-    <a href="{{ url_for('planning.week_stats', start=next_week) }}" class="btn btn-light rounded-circle shadow-sm"><i class="bi bi-chevron-right"></i></a>
+    <a href="{{ url_for('tracking.week_stats', start=prev_week) }}" class="btn btn-light rounded-circle shadow-sm"><i class="bi bi-chevron-left"></i></a>
+    <a href="{{ url_for('tracking.week_stats') }}" class="btn btn-outline-dark rounded-pill fw-bold shadow-sm px-3">Cette semaine</a>
+    <a href="{{ url_for('tracking.week_stats', start=next_week) }}" class="btn btn-light rounded-circle shadow-sm"><i class="bi bi-chevron-right"></i></a>
   </div>
 </div>
 
+<div class="row g-4 mb-4">
+    <div class="col-lg-4 d-flex flex-column gap-3">
+        <div class="card border-0 shadow-sm rounded-4 bg-white flex-grow-1">
+            <div class="card-body p-4">
+                <h5 class="fw-bold text-secondary mb-4"><i class="bi bi-speedometer2 text-info"></i> Suivi Corporel</h5>
+                
+                {% if profile and profile.goal_weight_kg and profile.weight_kg %}
+                    <div class="mb-4 p-3 bg-light rounded-3 border">
+                        <div class="d-flex justify-content-between small fw-bold mb-2">
+                            <span class="text-dark">Actuel: {{ profile.weight_kg }}kg</span>
+                            <span class="text-success"><i class="bi bi-flag-fill"></i> Cible: {{ profile.goal_weight_kg }}kg</span>
+                        </div>
+                        <div class="progress" style="height: 10px; border-radius: 5px;">
+                            <div class="progress-bar bg-success progress-bar-striped progress-bar-animated" style="width: 75%"></div>
+                        </div>
+                        {% set diff = (profile.weight_kg - profile.goal_weight_kg)|abs %}
+                        <div class="text-center mt-2 small fw-bold text-muted">Plus que {{ diff|round(1) }} kg à perdre/gagner ! Courage 💪</div>
+                    </div>
+                {% endif %}
+
+                <form id="bodyMetricsForm">
+                    <input type="hidden" id="metricDate" value="{{ today_str }}">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Nouvelle pesée (kg)</label>
+                        <div class="input-group shadow-sm">
+                            <span class="input-group-text bg-white border-0"><i class="bi bi-person-standing"></i></span>
+                            <input type="number" step="0.1" class="form-control border-0" id="weightInput" 
+                                   placeholder="ex: 75.5" value="{{ profile.weight_kg if profile.weight_kg else '' }}">
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label small fw-bold text-muted">Body Fat (%) <span class="fw-normal fst-italic">- Optionnel</span></label>
+                        <div class="input-group shadow-sm">
+                            <span class="input-group-text bg-white border-0"><i class="bi bi-droplet-half text-warning"></i></span>
+                            <input type="number" step="0.1" class="form-control border-0" id="bfInput" 
+                                   placeholder="ex: 15.0" value="{{ profile.current_bf_pct if profile.current_bf_pct else '' }}">
+                        </div>
+                    </div>
+                    <button type="button" id="saveMetricsBtn" class="btn btn-dark w-100 rounded-pill fw-bold shadow-sm">
+                        <i class="bi bi-save"></i> Enregistrer
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+            <div class="card-body p-4">
+                <h5 class="fw-bold text-secondary mb-4"><i class="bi bi-activity text-primary"></i> Évolution (30 jours)</h5>
+                <div style="height: 300px; position: relative;">
+                    <canvas id="bodyChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% set total_kcal = days | sum(attribute='kcal') %}
 {% set days_logged = days | selectattr('kcal', '>', 0) | list | length %}
 {% set avg_kcal = (total_kcal / days_logged)|round(0) if days_logged > 0 else 0 %}
@@ -151,5 +209,87 @@
     </div>
   </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+
+    // --- 1. ENREGISTREMENT EN AJAX (Pesée) ---
+    document.getElementById('saveMetricsBtn')?.addEventListener('click', async () => {
+        const date = document.getElementById('metricDate').value;
+        const weight = document.getElementById('weightInput').value;
+        const bf = document.getElementById('bfInput').value;
+
+        if (!weight) {
+            Swal.fire({ toast: true, position: 'top-end', icon: 'warning', title: 'Entrez au moins votre poids !', showConfirmButton: false, timer: 2000 });
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/body/log', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ date, weight, bf })
+            });
+            const data = await res.json();
+
+            if (data.ok) {
+                Swal.fire({ icon: 'success', title: 'Pesée enregistrée !', text: 'Profil mis à jour.', timer: 1500, showConfirmButton: false })
+                .then(() => location.reload()); 
+            } else {
+                throw new Error(data.error);
+            }
+        } catch(e) {
+            Swal.fire('Erreur', e.message, 'error');
+        }
+    });
+
+    // --- 2. GRAPHIQUE CORPOREL (Chart.js Double Axe) ---
+    const bodyLabels = {{ body_labels | default([]) | tojson | safe }};
+    if (bodyLabels.length > 0) {
+        const ctxBody = document.getElementById('bodyChart').getContext('2d');
+        new Chart(ctxBody, {
+            type: 'line',
+            data: {
+                labels: bodyLabels,
+                datasets: [
+                    {
+                        label: 'Poids (kg)',
+                        data: {{ body_weights | default([]) | tojson | safe }},
+                        borderColor: '#2c3e50',
+                        backgroundColor: 'rgba(44, 62, 80, 0.1)',
+                        borderWidth: 3,
+                        tension: 0.3,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Body Fat (%)',
+                        data: {{ body_bfs | default([]) | tojson | safe }},
+                        borderColor: '#f1c40f',
+                        backgroundColor: 'rgba(241, 196, 15, 0.1)',
+                        borderWidth: 3,
+                        tension: 0.3,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: { legend: { position: 'bottom' } },
+                scales: {
+                    y: { type: 'linear', display: true, position: 'left', title: { display: true, text: 'Poids (kg)' } },
+                    y1: { type: 'linear', display: true, position: 'right', title: { display: true, text: 'Body Fat (%)' }, grid: { drawOnChartArea: false } }
+                }
+            }
+        });
+    } else {
+        document.getElementById('bodyChart').parentElement.innerHTML = 
+            '<div class="d-flex h-100 align-items-center justify-content-center text-muted fst-italic">Enregistrez votre première pesée pour voir le graphique !</div>';
+    }
+});
+</script>
 {% endblock %}

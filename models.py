@@ -123,6 +123,13 @@ class UserProfile:
     goal_weight_kg: Optional[float] = None
     goal_bf_pct: Optional[float] = None
 
+@dataclass
+class BodyTrackingEntry:
+    log_date: str
+    weight_kg: Optional[float] = None
+    bf_pct: Optional[float] = None
+    id: Optional[int] = None
+
 
 # ── 4. Entités du Journal (Logs) ──────────────────────────────────────────────
 
@@ -145,4 +152,14 @@ class ExerciseEntry:
     name: str
     kcal_burned: float
     duration_min: Optional[int] = None
+    id: Optional[int] = None
+
+@dataclass
+class ExerciseEntry:
+    log_date: str
+    name: str
+    kcal_burned: float
+    duration_min: Optional[int] = None
+    rpe: int = 5                   # NOUVEAU : Intensité de 1 à 10
+    exercise_type: str = "cardio"  # NOUVEAU : 'cardio', 'musculation', ou 'recuperation'
     id: Optional[int] = None

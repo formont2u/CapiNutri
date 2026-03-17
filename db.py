@@ -102,6 +102,15 @@ def init_db() -> None:
                 _placeholder INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+            CREATE TABLE IF NOT EXISTS body_tracking (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                date_str TEXT NOT NULL,
+                weight_kg REAL,
+                bf_pct REAL,
+                UNIQUE(user_id, date_str),
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            );
             CREATE TABLE IF NOT EXISTS exercise_log (
                 id           INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id      INTEGER REFERENCES users(id),
@@ -180,3 +189,11 @@ def _run_migrations() -> None:
             lib_col = field + "_100g"
             if lib_col not in lib_cols:
                 conn.execute(f"ALTER TABLE ingredient_library ADD COLUMN {lib_col} REAL")
+        # (Dans db.py, à la fin de la fonction _run_migrations)
+        
+        # --- Migration pour le Cerveau Sportif (RPE & Type) ---
+        ex_cols = {row[1] for row in conn.execute("PRAGMA table_info(exercise_log)")}
+        if "rpe" not in ex_cols:
+            conn.execute("ALTER TABLE exercise_log ADD COLUMN rpe INTEGER DEFAULT 5")
+        if "exercise_type" not in ex_cols:
+            conn.execute("ALTER TABLE exercise_log ADD COLUMN exercise_type TEXT DEFAULT 'cardio'")
