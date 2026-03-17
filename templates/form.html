@@ -24,12 +24,12 @@
 
 <form method="post">
   
-  <div class="panel border-0 shadow-sm rounded-4 p-4 mb-4 bg-white">
+  <div class="card border-0 shadow-sm rounded-4 p-4 mb-4 bg-white">
     <h5 class="fw-bold text-secondary mb-4"><i class="bi bi-info-circle text-accent"></i> Informations de base</h5>
     <div class="row g-4 mb-4">
       <div class="col-md-6">
         <label class="form-label small fw-bold text-muted text-uppercase">Nom de la recette *</label>
-        <input class="form-control form-control-lg bg-light border-0 shadow-sm" name="name" required placeholder="ex. Omelette classique" value="{{ recipe.name if recipe else '' }}">
+        <input class="form-control form-control-lg bg-light border-0 shadow-sm fw-bold" name="name" required placeholder="ex. Omelette classique" value="{{ recipe.name if recipe else '' }}">
       </div>
       <div class="col-md-3">
         <label class="form-label small fw-bold text-muted text-uppercase">Catégorie</label>
@@ -38,7 +38,7 @@
       </div>
       <div class="col-md-3">
         <label class="form-label small fw-bold text-muted text-uppercase">Portions</label>
-        <input class="form-control form-control-lg bg-light border-0 shadow-sm" name="servings" type="number" min="0.5" step="0.5" value="{{ recipe.servings if recipe else 1 }}">
+        <input class="form-control form-control-lg bg-light border-0 shadow-sm text-center fw-bold text-accent" name="servings" type="number" min="0.5" step="0.5" value="{{ recipe.servings if recipe else 1 }}">
       </div>
     </div>
 
@@ -48,23 +48,32 @@
     </div>
   </div>
 
-  <div class="panel border-0 shadow-sm rounded-4 p-4 mb-4 bg-white">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+  <div class="card border-0 shadow-sm rounded-4 p-4 mb-4 bg-white">
+    
+    <div class="d-flex flex-wrap justify-content-between align-items-end mb-4 gap-3">
       <div>
         <h5 class="fw-bold text-secondary mb-1"><i class="bi bi-basket text-success"></i> Ingrédients</h5>
         <small class="text-muted"><i class="bi bi-search"></i> Tapez pour chercher un aliment en direct</small>
       </div>
-      <button type="button" class="btn btn-dark rounded-pill px-3 shadow-sm fw-bold" id="addIng">
-        <i class="bi bi-plus-lg"></i> Ajouter un ingrédient
-      </button>
+      <div class="d-flex align-items-center gap-3">
+        <div class="badge bg-light text-dark border shadow-sm px-3 py-2 text-start d-flex align-items-center gap-2 rounded-3">
+            <i class="bi bi-wallet2 text-success fs-5"></i>
+            <div>
+                <span class="d-block text-muted" style="font-size: 0.65rem; text-transform: uppercase;">Coût de la recette</span>
+                <span class="fw-bold fs-6 text-danger">~ NOK</span>
+            </div>
+        </div>
+        <button type="button" class="btn btn-dark rounded-pill px-4 shadow-sm fw-bold" id="addIng" style="background-color: var(--accent); border: none;">
+          <i class="bi bi-plus-lg"></i> Ajouter
+        </button>
+      </div>
     </div>
 
     <div class="row px-3 pb-2 text-muted small fw-bold text-uppercase d-none d-md-flex border-bottom mb-3">
-      <div class="col-5">Ingrédient</div>
+      <div class="col-4">Ingrédient</div>
       <div class="col-2">Source</div>
       <div class="col-2">Quantité</div>
-      <div class="col-2 text-center">Nutrition</div>
-      <div class="col-1"></div>
+      <div class="col-4 text-end">Actions</div>
     </div>
 
     {% macro nutr_input(fname, ing) %}
@@ -81,7 +90,7 @@
         <div class="ing-block bg-white border rounded-4 p-3 mb-3 shadow-sm">
           
           <div class="row g-2 align-items-center mb-2 position-relative">
-            <div class="col-12 col-md-5">
+            <div class="col-12 col-md-4">
               <input class="form-control bg-light border-0 shadow-sm off-name-input fw-bold" name="ing_name" placeholder="ex. Farine, Eple..." autocomplete="off" value="{{ ing.name if ing else '' }}">
               <div class="off-dropdown list-group position-absolute w-100 shadow rounded-3 mt-1" style="display:none; z-index: 1000; max-height: 250px; overflow-y: auto;"></div>
             </div>
@@ -105,9 +114,12 @@
               </select>
             </div>
 
-            <div class="col-12 col-md-3 d-flex justify-content-end gap-2">
-              <button type="button" class="btn btn-sm btn-light border shadow-sm btn-nutr-toggle {{ 'has-data' if ing and ing.has_nutrition else '' }} w-100 d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-bar-chart-line text-primary"></i> Nutrition</span>
+            <div class="col-12 col-md-4 d-flex justify-content-end gap-2">
+              <button type="button" class="btn btn-sm btn-outline-success shadow-sm btn-pricing" title="Définir le prix">
+                  <i class="bi bi-tag-fill"></i> <span class="d-none d-lg-inline small">Prix</span>
+              </button>
+              <button type="button" class="btn btn-sm btn-light border shadow-sm btn-nutr-toggle {{ 'has-data' if ing and ing.has_nutrition else '' }} flex-grow-1 d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-bar-chart-line text-primary"></i> Nutri</span>
                 {% if ing and ing.has_nutrition %}
                   <span class="badge bg-accent rounded-pill kcal-badge">{{ ing.kcal|int }} kcal</span>
                 {% endif %}
@@ -151,10 +163,62 @@
   <div class="d-flex justify-content-end gap-3 mb-5">
     <a href="{{ url_for('recipes.view_recipe', recipe_id=recipe.id) if recipe else url_for('recipes.index') }}" class="btn btn-outline-secondary rounded-pill px-4 fw-bold shadow-sm">Annuler</a>
     <button type="submit" class="btn btn-accent rounded-pill px-5 fw-bold shadow-sm">
-      <i class="bi bi-floppy"></i> {{ 'Sauvegarder' if recipe else 'Créer la recette' }}
+      <i class="bi bi-floppy"></i> {{ 'Sauvegarder modifications' if recipe else 'Créer la recette' }}
     </button>
   </div>
 </form>
+
+<div class="modal fade" id="quickPricingModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-4 border-0 shadow-lg">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold text-dark"><i class="bi bi-tag-fill text-success"></i> Ajouter un Prix</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-4">
+        <form id="quickPricingForm">
+          <input type="hidden" name="action" value="add_price">
+          
+          <div class="mb-3">
+            <label class="form-label small fw-bold text-muted text-uppercase">Ingrédient</label>
+            <input type="text" class="form-control bg-light border-0 fw-bold shadow-none" id="modalIngName" name="ingredient_name" readonly>
+          </div>
+          
+          <div class="row g-2 mb-4">
+            <div class="col-12">
+              <label class="form-label small fw-bold text-muted text-uppercase">Supermarché</label>
+              <select class="form-select bg-light border-0 shadow-sm fw-bold" name="shop_id" required>
+                <option value="">Sélectionner...</option>
+                {% for shop in shops %}
+                <option value="{{ shop.id }}">{{ shop.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-7">
+              <label class="form-label small fw-bold text-muted text-uppercase">Prix (NOK)</label>
+              <div class="input-group shadow-sm overflow-hidden rounded-3">
+                  <input type="number" step="any" min="0" class="form-control bg-light border-0" name="price" required>
+                  <span class="input-group-text bg-light border-0 text-muted">kr</span>
+              </div>
+            </div>
+            <div class="col-5">
+              <label class="form-label small fw-bold text-muted text-uppercase">Unité</label>
+              <select class="form-select bg-light border-0 shadow-sm" name="unit" required>
+                <option value="kg">kg</option>
+                <option value="l">Litre</option>
+                <option value="pièce">Pièce</option>
+                <option value="g">g</option>
+                <option value="paquet">Paquet</option>
+              </select>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-success w-100 rounded-pill fw-bold py-2 shadow-sm"><i class="bi bi-floppy"></i> Sauvegarder ce prix</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -291,7 +355,6 @@ function renderDropdown(dd, products, block) {
       const unit = block.querySelector('.ing-unit-input').value.trim();
       if (!fillFromBackend(block, p, qty, unit)) { showToast('Données insuffisantes.', 'warn'); return; }
       
-      // Sauvegarde asynchrone dans la bibliothèque locale
       try {
         await fetch('/api/library/save', {
           method: 'POST',
@@ -342,6 +405,49 @@ function wireOFF(block) {
   });
 }
 
+// --- GESTION DU BOUTON PRICING (MODALE) ---
+const quickPricingModal = new bootstrap.Modal(document.getElementById('quickPricingModal'));
+
+function wirePricingBtn(block) {
+    const btn = block.querySelector('.btn-pricing');
+    btn?.addEventListener('click', () => {
+        const ingName = block.querySelector('.off-name-input').value.trim();
+        if (!ingName) {
+            showToast('Saisissez d\'abord le nom de l\'ingrédient !', 'warn');
+            return;
+        }
+        document.getElementById('modalIngName').value = ingName;
+        // On pré-sélectionne l'unité si elle existe
+        const currentUnit = block.querySelector('.ing-unit-input').value;
+        const selectUnit = document.querySelector('#quickPricingForm select[name="unit"]');
+        if([...selectUnit.options].some(o => o.value === currentUnit)) {
+            selectUnit.value = currentUnit;
+        }
+        quickPricingModal.show();
+    });
+}
+
+// Interception du formulaire de la Modale (AJAX)
+document.getElementById('quickPricingForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const formData = new FormData(form);
+    
+    try {
+        // Envoi POST invisible vers la route de gestion des prix
+        await fetch('{{ url_for("planning.pricing_manager") }}', {
+            method: 'POST',
+            body: formData
+        });
+        showToast('Prix ajouté à la base de données !', 'success');
+        quickPricingModal.hide();
+        form.reset();
+    } catch (err) {
+        showToast('Erreur de connexion', 'error');
+    }
+});
+
+
 // --- GESTION DES BLOCS INGRÉDIENTS (DOM) ---
 function wireNutrTabs(block) {
   block.querySelectorAll('.nutr-tab').forEach(tab => {
@@ -381,9 +487,11 @@ function wireRow(block) {
   toggle?.addEventListener('click', () => { 
       panel.classList.toggle('d-none'); 
   });
+  
   wireNutrTabs(block);
   wireSourceToggle(block);
   wireOFF(block);
+  wirePricingBtn(block); // <--- NOUVEAU
 
   const qtyInp = block.querySelector('.ing-qty-input');
   const unitInp = block.querySelector('.ing-unit-input');
@@ -427,10 +535,10 @@ function buildRow() {
   const block = document.createElement('div'); 
   block.className = 'ing-block bg-white border rounded-4 p-3 mb-3 shadow-sm';
   
-  // HTML parfaitement synchronisé avec le template Jinja
+  // HTML synchronisé avec le bouton Pricing
   block.innerHTML = `
     <div class="row g-2 align-items-center mb-2 position-relative">
-      <div class="col-12 col-md-5">
+      <div class="col-12 col-md-4">
         <input class="form-control bg-light border-0 shadow-sm off-name-input fw-bold" name="ing_name" placeholder="ex. Farine, Eple..." autocomplete="off">
         <div class="off-dropdown list-group position-absolute w-100 shadow rounded-3 mt-1" style="display:none; z-index: 1000; max-height: 250px; overflow-y: auto;"></div>
       </div>
@@ -447,9 +555,12 @@ function buildRow() {
           <option value="cas">c.à.s</option><option value="pièce">pièce</option><option value="pincée">pincée</option>
         </select>
       </div>
-      <div class="col-12 col-md-3 d-flex justify-content-end gap-2">
-        <button type="button" class="btn btn-sm btn-light border shadow-sm btn-nutr-toggle w-100 d-flex justify-content-between align-items-center">
-          <span><i class="bi bi-bar-chart-line text-primary"></i> Nutrition</span>
+      <div class="col-12 col-md-4 d-flex justify-content-end gap-2">
+        <button type="button" class="btn btn-sm btn-outline-success shadow-sm btn-pricing" title="Définir le prix">
+            <i class="bi bi-tag-fill"></i> <span class="d-none d-lg-inline small">Prix</span>
+        </button>
+        <button type="button" class="btn btn-sm btn-light border shadow-sm btn-nutr-toggle flex-grow-1 d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-bar-chart-line text-primary"></i> Nutri</span>
         </button>
         <button type="button" class="btn btn-sm btn-outline-danger border-0 btn-remove-ing"><i class="bi bi-trash-fill"></i></button>
       </div>
@@ -474,7 +585,7 @@ function buildRow() {
   return block;
 }
 
-// ── INITIALISATION POUR LES RECETTES EXISTANTES ──
+// ── INITIALISATION ──
 document.querySelectorAll('.ing-block').forEach(block => {
   if (!block.dataset.per100g) {
     const qty = parseFloat(block.querySelector('.ing-qty-input')?.value) || 0;

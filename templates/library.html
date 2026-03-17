@@ -1,88 +1,139 @@
 {% extends "base.html" %}
-{% block title %}Bibliothèque d'ingrédients{% endblock %}
+{% block title %}Bibliothèque d'ingrédients — Capynutri{% endblock %}
 
 {% block content %}
-<div class="topbar">
+
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 pb-3 border-bottom gap-3">
   <div>
-    <h1><i class="bi bi-bookmark-star-fill" style="color:var(--accent)"></i> Bibliothèque</h1>
-    <div class="subtitle">{{ entries|length }} ingrédient{{ 's' if entries|length != 1 }} enregistré{{ 's' if entries|length != 1 }}</div>
+    <h2 class="mb-1 fw-bold text-dark">
+      <i class="bi bi-bookmark-star-fill text-accent"></i> Bibliothèque
+    </h2>
+    <span class="text-muted fw-bold">{{ entries|length }} ingrédient{{ 's' if entries|length != 1 }} enregistré{{ 's' if entries|length != 1 }}</span>
   </div>
-  <div class="d-flex gap-2 align-items-center">
-    <form method="get" class="d-flex gap-2 align-items-center">
-      <div class="search-wrap">
-        <i class="bi bi-search"></i>
-        <input class="form-control" name="q" placeholder="Rechercher…" value="{{ search }}" style="width:200px">
+  
+  <div class="d-flex flex-wrap gap-2 align-items-center">
+    <form method="get" action="{{ url_for('library.library') }}" class="d-flex gap-2 align-items-center m-0">
+      <div class="input-group input-group-sm shadow-sm rounded-pill overflow-hidden border bg-white" style="width: 240px;">
+        <span class="input-group-text bg-white border-0 text-muted ps-3"><i class="bi bi-search"></i></span>
+        <input class="form-control border-0 bg-white shadow-none" name="q" placeholder="Rechercher un aliment…" value="{{ search }}">
       </div>
-      {% if search %}<a href="{{ url_for('library.library') }}" class="btn btn-outline-secondary btn-sm">✕</a>{% endif %}
+      
+      {% if search %}
+        <a href="{{ url_for('library.library') }}" class="btn btn-sm btn-outline-danger rounded-pill px-2" title="Effacer la recherche">
+          <i class="bi bi-x-lg"></i>
+        </a>
+      {% endif %}
     </form>
-    <a href="{{ url_for('library.library_add') }}" class="btn btn-accent d-flex align-items-center gap-1">
-      <i class="bi bi-plus-lg"></i> Ajouter
+    
+    <a href="{{ url_for('library.library_add') }}" class="btn btn-dark rounded-pill shadow-sm fw-bold px-3 d-flex align-items-center gap-2">
+      <i class="bi bi-plus-lg text-accent"></i> <span class="d-none d-sm-inline">Ajouter</span>
     </a>
   </div>
 </div>
 
 {% if entries %}
-<div class="lib-table-wrap">
-  <table class="lib-table">
-    <thead>
-      <tr>
-        <th>Ingrédient</th>
-        <th>Marque</th>
-        <th style="text-align:right">kcal/100g</th>
-        <th style="text-align:right">Prot.</th>
-        <th style="text-align:right">Glucides</th>
-        <th style="text-align:right">Lipides</th>
-        <th style="text-align:right">Utilisations</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-    {% for e in entries %}
-    <tr>
-      <td class="lib-name">
-        {{ e.name }}
-        {% if e.barcode %}<span class="lib-barcode"><i class="bi bi-upc"></i> {{ e.barcode }}</span>{% endif %}
-      </td>
-      <td class="lib-brand">{{ e.brand or '—' }}</td>
-      <td class="lib-num">{{ e.kcal_100g|round(0)|int if e.kcal_100g else '—' }}</td>
-      <td class="lib-num">{{ e.protein_g_100g|round(1) if e.protein_g_100g else '—' }}</td>
-      <td class="lib-num">{{ e.carbs_g_100g|round(1) if e.carbs_g_100g else '—' }}</td>
-      <td class="lib-num">{{ e.fat_g_100g|round(1) if e.fat_g_100g else '—' }}</td>
-      <td class="lib-num">
-        <span class="lib-uses-badge">{{ e.used_count }}</span>
-      </td>
-      <td class="lib-actions">
-        <a href="{{ url_for('library.library_edit', entry_id=e.id) }}"
-           class="btn btn-sm btn-outline-secondary" title="Modifier">
-          <i class="bi bi-pencil"></i>
-        </a>
-        <form method="post" action="{{ url_for('library.library_delete', entry_id=e.id) }}"
-              style="display:inline" onsubmit="return confirm('Supprimer « {{ e.name }} » ?')">
-          <button class="btn btn-sm btn-outline-danger" title="Supprimer">
-            <i class="bi bi-trash"></i>
-          </button>
-        </form>
-      </td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="bg-light text-uppercase small fw-bold text-muted">
+        <tr>
+          <th class="ps-4 py-3 border-0">Ingrédient</th>
+          <th class="py-3 border-0">Marque</th>
+          <th class="py-3 border-0 text-center">kcal / 100g</th>
+          <th class="py-3 border-0 text-center">Macros (P / G / L)</th>
+          <th class="py-3 border-0 text-center">Utilisations</th>
+          <th class="pe-4 py-3 border-0 text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="border-top">
+        {% for e in entries %}
+        <tr>
+          <td class="ps-4">
+            <div class="fw-bold text-dark">{{ e.name }}</div>
+            {% if e.barcode %}
+              <div class="small text-muted mt-1">
+                <i class="bi bi-upc"></i> <code class="text-secondary small">{{ e.barcode }}</code>
+              </div>
+            {% endif %}
+          </td>
+          <td class="text-muted small fw-bold">{{ e.brand or '—' }}</td>
+          <td class="text-center">
+            <span class="badge bg-light text-accent border rounded-pill px-3 py-2 fw-bold">
+              {{ e.kcal_100g|round(0)|int if e.kcal_100g else '—' }}
+            </span>
+          </td>
+          <td class="text-center">
+            <div class="d-flex justify-content-center gap-2">
+              <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill border-primary border-opacity-25" style="min-width: 45px;">{{ e.protein_g_100g|round(1) if e.protein_g_100g else 0 }}g</span>
+              <span class="badge bg-warning bg-opacity-10 text-warning rounded-pill border-warning border-opacity-25" style="min-width: 45px;">{{ e.carbs_g_100g|round(1) if e.carbs_g_100g else 0 }}g</span>
+              <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill border-danger border-opacity-25" style="min-width: 45px;">{{ e.fat_g_100g|round(1) if e.fat_g_100g else 0 }}g</span>
+            </div>
+          </td>
+          <td class="text-center">
+            <span class="badge rounded-pill bg-light text-dark border fw-bold shadow-sm" style="font-size: 0.75rem;">
+              {{ e.used_count or 0 }}
+            </span>
+          </td>
+          <td class="pe-4 text-end">
+            <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white border">
+              <a href="{{ url_for('library.library_edit', entry_id=e.id) }}" class="btn btn-sm btn-white border-0 py-2 px-3" title="Modifier">
+                <i class="bi bi-pencil-fill text-muted"></i>
+              </a>
+              <form method="post" action="{{ url_for('library.library_delete', entry_id=e.id) }}" id="deleteForm{{ e.id }}" style="display:inline">
+                <button type="button" onclick="confirmDeleteLib('{{ e.id }}', '{{ e.name|replace("'", "\\'") }}')" class="btn btn-sm btn-white border-0 py-2 px-3 border-start" title="Supprimer">
+                  <i class="bi bi-trash-fill text-danger"></i>
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 
 {% else %}
-<div class="empty-state">
-  <i class="bi bi-bookmark-x"></i>
+<div class="text-center py-5 my-5">
+  <div class="mb-4">
+    <i class="bi bi-bookmark-x text-muted" style="font-size: 4rem; opacity: 0.3;"></i>
+  </div>
+  
   {% if search %}
-    <p>Aucun résultat pour <strong>"{{ search }}"</strong>.</p>
-    <a href="{{ url_for('library.library') }}" class="btn btn-accent">Effacer</a>
+    <h4 class="fw-bold text-dark">Aucun résultat</h4>
+    <p class="text-muted">Nous n'avons trouvé aucun ingrédient pour <strong>"{{ search }}"</strong>.</p>
+    <a href="{{ url_for('library.library') }}" class="btn btn-outline-dark rounded-pill mt-2 fw-bold px-4">
+      Effacer la recherche
+    </a>
   {% else %}
-    <p>La bibliothèque est vide pour l'instant.</p>
-    <p style="color:#aaa;font-size:.88rem">
-      Cherche un ingrédient depuis le formulaire de recette — il sera automatiquement sauvegardé ici quand tu le sélectionnes.
-    </p>
-    <a href="{{ url_for('recipes.new_recipe') }}" class="btn btn-accent">Créer une recette</a>
+    <h4 class="fw-bold text-dark">Votre bibliothèque est vide</h4>
+    <p class="text-muted">Cherchez un ingrédient dans une recette pour qu'il soit sauvegardé ici automatiquement.</p>
+    <a href="{{ url_for('recipes.new_recipe') }}" class="btn btn-accent rounded-pill mt-2 fw-bold px-4 shadow-sm">
+      <i class="bi bi-plus-lg"></i> Créer une recette
+    </a>
   {% endif %}
 </div>
 {% endif %}
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+function confirmDeleteLib(entryId, entryName) {
+    Swal.fire({
+        title: 'Supprimer l\'aliment ?',
+        text: `Voulez-vous vraiment retirer "${entryName}" de votre bibliothèque ?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#e53935',
+        cancelButtonColor: '#95a5a6',
+        confirmButtonText: 'Oui, supprimer',
+        cancelButtonText: 'Annuler'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            document.getElementById('deleteForm' + entryId).submit();
+        }
+    });
+}
+</script>
 {% endblock %}

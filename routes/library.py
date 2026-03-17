@@ -3,6 +3,8 @@ from flask_login import login_required
 import crud
 from services import nutrition_api
 from constants import NUTRIENT_FIELDS, NUTRIENT_LABELS, MACRO_FIELDS, CARB_FIELDS, FAT_FIELDS, MICRO_FIELDS, VITAMIN_FIELDS, USDA_FIELDS
+import pricing_db
+from utils import normalize_string
 
 library_bp = Blueprint('library', __name__)
 
@@ -39,22 +41,50 @@ def library_add():
 
 @library_bp.route("/library/<int:entry_id>/edit", methods=["GET", "POST"])
 @login_required
+
 def library_edit(entry_id):
     entry = crud.get_library_entry(entry_id)
     if not entry: return redirect(url_for("library.library"))
+    
     if request.method == "POST":
-        per_100g = {}
-        for f in NUTRIENT_FIELDS:
-            v = request.form.get(f"nutr_{f}", "").strip()
-            if v:
-                try: per_100g[f] = float(v)
-                except ValueError: pass
-        crud.update_library_entry(
-            entry_id, name=request.form.get("name", "").strip(), brand=request.form.get("brand", "").strip(),
-            barcode=request.form.get("barcode", "").strip(), per_100g=per_100g,
-        )
-        return redirect(url_for("library.library"))
+        action = request.form.get("action", "save_ingredient")
+        
+        # ── Action 1 : Sauvegarder l'ingrédient
+        if action == "save_ingredient":
+            per_100g = {}
+            for f in NUTRIENT_FIELDS:
+                v = request.form.get(f"nutr_{f}", "").strip()
+                if v:
+                    try: per_100g[f] = float(v)
+                    except ValueError: pass
+            crud.update_library_entry(
+                entry_id, name=request.form.get("name", "").strip(), brand=request.form.get("brand", "").strip(),
+                barcode=request.form.get("barcode", "").strip(), per_100g=per_100g,
+            )
+            return redirect(url_for("library.library"))
+            
+        # ── Action 2 : Ajouter un prix
+        elif action == "add_price":
+            shop_id = request.form.get("shop_id")
+            price = request.form.get("price")
+            unit = request.form.get("unit")
+            if shop_id and price:
+                pricing_db.add_price(int(shop_id), entry["name"], float(price), unit)
+            return redirect(url_for("library.library_edit", entry_id=entry_id))
+            
+        # ── Action 3 : Supprimer un prix
+        elif action == "delete_price":
+            price_id = request.form.get("price_id")
+            if price_id:
+                pricing_db.delete_price(int(price_id))
+            return redirect(url_for("library.library_edit", entry_id=entry_id))
+
+    # Chargement des données pour l'affichage (GET)
+    shops = pricing_db.get_shops()
+    ingredient_prices = pricing_db.get_prices_for_ingredient(normalize_string(entry["name"]))
+
     return render_template("library_edit.html", entry=entry, is_new=False,
+                           shops=shops, ingredient_prices=ingredient_prices,
                            NUTRIENT_FIELDS=NUTRIENT_FIELDS, NUTRIENT_LABELS=NUTRIENT_LABELS,
                            MACRO_FIELDS=MACRO_FIELDS, CARB_FIELDS=CARB_FIELDS, FAT_FIELDS=FAT_FIELDS, 
                            MICRO_FIELDS=MICRO_FIELDS, VITAMIN_FIELDS=VITAMIN_FIELDS, USDA_FIELDS=USDA_FIELDS)

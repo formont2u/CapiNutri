@@ -10,6 +10,8 @@ from models import Recipe, Ingredient
 from constants import NUTRIENT_FIELDS
 from utils import _f, normalize_string
 
+import pricing_db
+
 # 🧠 Nos "Cerveaux"
 from services.pricing import calculate_cost
 from services.nutrition import get_recipe_nutrition_per_serving, calculate_nutri_score
@@ -52,6 +54,7 @@ def index():
                            active_category=category, search=search,
                            all_tags=all_tags, active_tag=active_tag)
 
+# --- VUE RECETTE ---
 @recipes_bp.route("/recipe/<int:recipe_id>")
 @login_required
 def view_recipe(recipe_id):
@@ -68,7 +71,6 @@ def view_recipe(recipe_id):
     
     base_cost = 0.0
     for ing in recipe.ingredients:
-        # ✅ CORRECTION 1 : Utilisation de utils.normalize_string
         norm_name = normalize_string(ing.name)
         prices = best_prices.get(norm_name)
         ing.estimated_cost = 0.0
@@ -77,28 +79,33 @@ def view_recipe(recipe_id):
         if prices:
             best = prices[0]
             ing.cheapest_shop = best["shop_name"]
-            # ✅ CORRECTION 2 : Utilisation du Cerveau Financier
             ing.estimated_cost = calculate_cost(ing.quantity, ing.unit, best["price"], best["ref_unit"])
             base_cost += ing.estimated_cost
             
     cost_per_serving = base_cost / recipe.servings if recipe.servings > 0 else 0
     
-    # ✅ BONUS PRO : On calcule le Nutri-Score pour le HTML
-    nutri_data = calculate_nutri_score(recipe)
+    # Si tu as une fonction Nutri-Score, c'est parfait
+    # nutri_data = calculate_nutri_score(recipe) 
+    
+    shops = pricing_db.get_shops()
 
     return render_template("recipe.html", recipe=recipe, servings=servings, scale=scale, 
                            base_cost=base_cost, cost_per_serving=cost_per_serving, 
-                           nutri_data=nutri_data)
+                           shops=shops) # Ajoute nutri_data si tu l'utilises
 
+# --- NOUVELLE RECETTE ---
 @recipes_bp.route("/recipe/new", methods=["GET","POST"])
 @login_required
 def new_recipe():
     categories = crud.list_categories()
+    shops = pricing_db.get_shops() # On le charge TOUT DE SUITE !
+    
     if request.method == "POST":
         name = request.form.get("name", "").strip()
         if not name: 
             flash("Nom requis.", "error")
-            return render_template("form.html", recipe=None, categories=categories, all_tags=crud.list_tags())
+            # Comme ça, shops est bien passé même en cas d'erreur !
+            return render_template("form.html", recipe=None, categories=categories, all_tags=crud.list_tags(), shops=shops)
             
         recipe = Recipe(
             name=name,
@@ -112,34 +119,31 @@ def new_recipe():
         flash(f"'{recipe.name}' ajoutée !", "success")
         return redirect(url_for("recipes.view_recipe", recipe_id=rid))
         
-    return render_template("form.html", recipe=None, categories=categories, all_tags=crud.list_tags())
+    return render_template("form.html", recipe=None, categories=categories, all_tags=crud.list_tags(), shops=shops)
 
-@recipes_bp.route("/recipe/<int:recipe_id>/edit", methods=["GET","POST"])
+# --- MODIFIER RECETTE (Ne l'oublie pas !) ---
+@recipes_bp.route("/recipe/<int:recipe_id>/edit", methods=["GET", "POST"])
 @login_required
 def edit_recipe(recipe_id):
     recipe = crud.get_recipe(recipe_id)
+    if not recipe: return redirect(url_for("recipes.index"))
+    
     categories = crud.list_categories()
-    if not recipe: 
-        flash("Recette introuvable.", "error")
-        return redirect(url_for("recipes.index"))
-        
+    shops = pricing_db.get_shops() # Chargé ici aussi
+    
     if request.method == "POST":
-        recipe.name         = request.form.get("name", "").strip()
-        recipe.category     = request.form.get("category", "").strip() or None
-        recipe.servings     = float(request.form.get("servings", 1) or 1)
+        recipe.name = request.form.get("name", "").strip()
+        recipe.category = request.form.get("category", "").strip() or None
+        recipe.servings = float(request.form.get("servings", 1) or 1)
         recipe.instructions = request.form.get("instructions", "").strip()
-        recipe.ingredients  = parse_ingredients_from_form(request.form)
-        recipe.tags         = request.form.getlist("tags")
+        recipe.ingredients = parse_ingredients_from_form(request.form)
+        recipe.tags = request.form.getlist("tags")
         
-        if not recipe.name: 
-            flash("Nom requis.", "error")
-            return render_template("form.html", recipe=recipe, categories=categories, all_tags=crud.list_tags())
-            
         crud.update_recipe(recipe)
-        flash(f"'{recipe.name}' mise à jour !", "success")
+        flash("Recette mise à jour.", "info")
         return redirect(url_for("recipes.view_recipe", recipe_id=recipe_id))
         
-    return render_template("form.html", recipe=recipe, categories=categories, all_tags=crud.list_tags())
+    return render_template("form.html", recipe=recipe, categories=categories, all_tags=crud.list_tags(), shops=shops)
 
 @recipes_bp.route("/recipe/<int:recipe_id>/delete", methods=["POST"])
 @login_required

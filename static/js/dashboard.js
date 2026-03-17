@@ -120,3 +120,49 @@ async function deleteEntry(entryId) {
         Swal.fire('Erreur', 'Problème de connexion.', 'error');
     }
 }
+
+document.getElementById('activeDayToggle')?.addEventListener('change', async (e) => {
+    const isActive = e.target.checked;
+    const label = document.getElementById('activeDayLabel');
+    const dataWrapper = document.getElementById('dashboard-data');
+    
+    // 1. Animation visuelle du toggle
+    label.innerHTML = isActive 
+        ? '<i class="bi bi-lightning-charge-fill text-warning"></i> Entraînement' 
+        : '<i class="bi bi-cup-hot-fill text-muted"></i> Repos';
+
+    if (dataWrapper) {
+        // 2. Calculs en direct
+        const consumed = parseFloat(dataWrapper.dataset.consumed || 0);
+        const newGoal = parseFloat(isActive ? dataWrapper.dataset.trainGoal : dataWrapper.dataset.restGoal);
+        const dateStr = dataWrapper.dataset.date;
+
+        // 3. Mise à jour du texte HTML de l'objectif (Adapte l'ID selon ton code !)
+        const goalDisplay = document.getElementById('goal-kcal-display');
+        if (goalDisplay) {
+            goalDisplay.innerText = Math.round(newGoal);
+        }
+
+        // 📊 4. SI TU AS UN GRAPHIQUE CHART.JS DE JAUGE :
+        // Si ta variable Chart.js est globale (ex: window.myChart), tu peux la mettre à jour ici !
+        /*
+        if (typeof myChart !== 'undefined') {
+            const remaining = Math.max(0, newGoal - consumed);
+            myChart.data.datasets[0].data = [consumed, remaining];
+            myChart.update();
+        }
+        */
+
+        // 5. Sauvegarde API
+        try {
+            await fetch('/api/day/toggle_active', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ date: dateStr, is_active: isActive })
+            });
+            Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 1500, icon: 'success', title: 'Objectifs synchronisés ⚡' });
+        } catch(err) {
+            e.target.checked = !isActive; // Rollback
+        }
+    }
+});

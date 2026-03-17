@@ -82,3 +82,13 @@ def get_best_prices(ingredient_names: list[str]) -> dict:
         if norm not in best: best[norm] = []
         best[norm].append(dict(r))
     return best
+
+def get_prices_for_ingredient(norm_name: str) -> list[dict]:
+    """Récupère tous les prix enregistrés pour un ingrédient spécifique."""
+    with get_pricing_conn() as conn:
+        return [dict(r) for r in conn.execute("""
+            SELECT p.*, s.name as shop_name 
+            FROM prices p JOIN shops s ON p.shop_id = s.id 
+            WHERE p.ingredient_norm = ?
+            ORDER BY p.price ASC
+        """, (norm_name,))]

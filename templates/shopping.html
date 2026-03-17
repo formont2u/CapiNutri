@@ -2,158 +2,164 @@
 {% block title %}Liste de courses — {{ week_label }}{% endblock %}
 
 {% block content %}
-<div class="plan-header">
-  <a href="{{ url_for('planning.shopping_list', start=prev_week) }}" class="btn btn-sm btn-outline-secondary">
-    <i class="bi bi-chevron-left"></i>
-  </a>
-  <div class="plan-date-display">
-    <h1 class="plan-day" style="font-size:1.2rem">
-      <i class="bi bi-cart3" style="color:var(--accent)"></i>
-      Liste de courses · {{ week_label }}
-    </h1>
-  </div>
 
-  <div class="d-flex align-items-center gap-3">
-    {% if result.total_estimated_cost > 0 %}
-      <div class="badge bg-white text-dark border shadow-sm p-2 fs-6">
-        Est. Total: <span class="text-danger fw-bold fs-5">{{ result.total_estimated_cost|int }} NOK</span>
-      </div>
-    {% endif %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3 pb-2 border-bottom">
+    <div class="d-flex align-items-center gap-3">
+        <a href="{{ url_for('planning.shopping_list', start=prev_week) }}" class="btn btn-light rounded-circle shadow-sm"><i class="bi bi-chevron-left"></i></a>
+        <h2 class="mb-0 fw-bold text-dark d-flex align-items-center gap-2">
+            <i class="bi bi-cart3 text-accent"></i> Courses
+        </h2>
+        <a href="{{ url_for('planning.shopping_list', start=next_week) }}" class="btn btn-light rounded-circle shadow-sm"><i class="bi bi-chevron-right"></i></a>
+    </div>
 
-  <a href="{{ url_for('planning.shopping_list', start=next_week) }}" class="btn btn-sm btn-outline-secondary">
-    <i class="bi bi-chevron-right"></i>
-  </a>
-  <button class="btn btn-sm btn-outline-secondary ms-2" onclick="window.print()" title="Imprimer">
-    <i class="bi bi-printer"></i>
-  </button>
+    <div class="d-flex gap-2 align-items-center">
+        {% if result.total_estimated_cost > 0 %}
+        <div class="badge bg-white text-dark border shadow-sm px-3 py-2 d-flex align-items-center gap-2 rounded-pill">
+            <span class="text-muted fw-bold">Budget Est.</span>
+            <span class="text-danger fw-bold fs-6">{{ result.total_estimated_cost|int }} NOK</span>
+        </div>
+        {% endif %}
+        
+        <button class="btn btn-outline-dark rounded-circle shadow-sm d-none d-md-block" onclick="window.print()" title="Imprimer la liste">
+            <i class="bi bi-printer"></i>
+        </button>
+    </div>
 </div>
 
 {% if result.days %}
-<div class="row g-4 mt-1">
+<div class="row g-4">
 
-  {# ── Left: planned meals this week ── #}
-  <div class="col-lg-4">
-    <div class="form-panel">
-      <div class="section-title"><i class="bi bi-calendar2-week"></i> Repas planifiés</div>
-      {% set ns = namespace(last_date="") %}
-      {% for d in result.days %}
-      {% if d.plan_date != ns.last_date %}
-      {% set ns.last_date = d.plan_date %}
-      {% set parts = d.plan_date.split('-') %}
-      {% set day_names = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'] %}
-      {% set month_names = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'] %}
-      <div class="shopping-date-header">
-        <span class="text-muted small">
-          {% if d.plan_date %}
-          {{ d.plan_date[8:10] }}/{{ d.plan_date[5:7] }}
-          {% endif %}
-        </span>
-      </div>
-      {% endif %}
-      <div class="shopping-meal-row">
-        <span class="shopping-meal-type">{{ d.meal_type }}</span>
-        <a href="{{ url_for('recipes.view_recipe', recipe_id=d.recipe_id) }}" class="shopping-recipe-link">
-          {{ d.recipe_name }}
-        </a>
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-
-  {# ── Right: shopping list ── #}
- 
-  <div class="col-lg-8">
-    <div class="form-panel mb-4">
-      <div class="section-title d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-cart"></i> À acheter au magasin</span>
-        <button class="btn btn-sm btn-outline-secondary" id="checkAllBtn">
-          <i class="bi bi-check2-all"></i> Tout cocher
-        </button>
-      </div>
-
-      {% if result.items %}
-      <ul class="shopping-checklist" id="shoppingList">
-        {% for item in result['items'] %}
-          {% if item.to_buy %}
-          <li class="shopping-item" id="si-{{ loop.index }}">
-            <label class="shopping-label">
-              <input type="checkbox" class="shopping-check"
-                  data-name="{{ item.name }}"
-                  data-purchases='{{ item.to_buy | tojson }}'
-                  onchange="this.closest('.shopping-item').classList.toggle('checked', this.checked)">
-              <span class="shopping-item-name">{{ item.name }}</span>
-              <span class="shopping-item-qty">
-                {% for unit, total in item.to_buy.items() %}
-                  <span class="shopping-qty-chip text-danger fw-bold">
-                    {{ total|round(1) }}{% if total == total|int %}{{ '' }}{% endif %}{% if unit %}&nbsp;{{ unit }}{% endif %}
-                  </span>
-                {% endfor %}
+    <div class="col-lg-4 d-none d-lg-block">
+        <div class="card border-0 shadow-sm rounded-4 bg-white sticky-top" style="top: 2rem;">
+            <div class="card-body p-4">
+                <h5 class="fw-bold text-secondary mb-4"><i class="bi bi-calendar2-week text-primary"></i> Au menu cette semaine</h5>
                 
-                {% if item.estimated_cost > 0 %}
-                  <span class="badge bg-light text-dark border ms-2">
-                    ~ {{ item.estimated_cost|int }} NOK <span class="text-muted fw-normal" style="font-size: 0.65rem;">chez {{ item.cheapest_shop }}</span>
-                  </span>
-                {% endif %}
-
-                {% if item.in_stock %}
-                  <span class="badge bg-success ms-2 p-1" style="font-size: 0.65rem;" title="Déduit du stock !">
-                    <i class="bi bi-box2-heart"></i> Stock déduit
-                  </span>
-                {% endif %}
-              </span>
-
-            </label>
-            {% if item.entries|length > 1 %}
-            <div class="shopping-recipes">
-              {% for e in item.entries %}
-              <span class="shopping-recipe-chip">{{ e.recipe }}</span>
-              {% endfor %}
+                <div class="d-flex flex-column gap-3">
+                    {% set ns = namespace(last_date="") %}
+                    {% for d in result.days %}
+                        {% if d.plan_date != ns.last_date %}
+                            {% set ns.last_date = d.plan_date %}
+                            {% if not loop.first %}<hr class="my-1 text-muted opacity-25">{% endif %}
+                            <div class="small fw-bold text-muted text-uppercase mt-2" style="letter-spacing: 1px;">
+                                <i class="bi bi-calendar-event me-1"></i> {{ d.plan_date[8:10] }}/{{ d.plan_date[5:7] }}
+                            </div>
+                        {% endif %}
+                        
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-light text-muted border rounded-pill" style="min-width: 45px; font-size: 0.65rem;">{{ d.meal_type[:3] | upper }}</span>
+                            <a href="{{ url_for('recipes.view_recipe', recipe_id=d.recipe_id) }}" class="text-dark fw-bold text-decoration-none hover-accent text-truncate" style="font-size: 0.9rem;">
+                                {{ d.recipe_name }}
+                            </a>
+                        </div>
+                    {% endfor %}
+                </div>
             </div>
-            {% endif %}
-          </li>
-          {% endif %}
-        {% endfor %}
-      </ul>
-      <button id="finishShoppingBtn" class="btn btn-accent mt-4 w-100 shadow-sm" style="padding: 12px; font-weight: 800; font-size: 1.1rem;">
-        <i class="bi bi-box-arrow-in-down"></i> Transférer les articles cochés dans mon Garde-Manger
-      </button>
-      {% endif %}
+        </div>
     </div>
 
-    <div class="form-panel bg-light border-0">
-      <div class="section-title text-success"><i class="bi bi-box-seam"></i> Déjà dans vos placards</div>
-      <ul class="list-group list-group-flush bg-transparent" style="font-size: 0.85rem;">
-        {% set has_stock = false %}
-        {% for item in result['items'] %}
-          {% if item.in_stock and not item.to_buy %}
-            {% set has_stock = true %}
-            <li class="list-group-item bg-transparent px-0 d-flex justify-content-between text-muted">
-              <span><i class="bi bi-check-circle-fill text-success me-2"></i> {{ item.name }}</span>
-              <span>
-                {% for unit, total in item.in_stock.items() %}
-                  {{ total|round(1) }}{% if total == total|int %}{{ '' }}{% endif %} {{ unit }}
-                {% endfor %}
-              </span>
-            </li>
-          {% endif %}
-        {% endfor %}
+    <div class="col-lg-8">
         
-        {% if not has_stock %}
-          <li class="list-group-item bg-transparent px-0 text-muted fst-italic border-0">
-            Aucun ingrédient complet de cette semaine n'est couvert par votre stock actuel.
-          </li>
-        {% endif %}
-      </ul>
-    </div>
-  </div>
+        <div class="card border-0 shadow-sm rounded-4 bg-white mb-4">
+            <div class="card-body p-4 p-md-5">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h4 class="fw-bold text-dark mb-0"><i class="bi bi-basket text-accent"></i> À acheter</h4>
+                    <button class="btn btn-sm btn-outline-secondary rounded-pill fw-bold px-3" id="checkAllBtn">
+                        <i class="bi bi-check2-all"></i> Tout cocher
+                    </button>
+                </div>
 
+                {% if result.items %}
+                <div class="list-group list-group-flush mb-4" id="shoppingList">
+                    {% for item in result.items %}
+                        {% if item.to_buy %}
+                        <label class="list-group-item d-flex justify-content-between align-items-center px-0 py-3 border-bottom shopping-item" style="cursor: pointer;">
+                            <div class="d-flex align-items-center gap-3">
+                                <input class="form-check-input flex-shrink-0 shopping-check m-0" type="checkbox" value="" style="width: 1.5rem; height: 1.5rem;" 
+                                       data-name="{{ item.name }}" data-purchases='{{ item.to_buy | tojson }}'
+                                       onchange="this.closest('.shopping-item').classList.toggle('opacity-50', this.checked); this.closest('.shopping-item').classList.toggle('text-decoration-line-through', this.checked);">
+                                
+                                <div>
+                                    <span class="fw-bold text-dark fs-6 d-block">{{ item.name }}</span>
+                                    {% if item.estimated_cost > 0 %}
+                                    <div class="small mt-1">
+                                        <span class="badge bg-light text-dark border">~ {{ item.estimated_cost|int }} NOK</span>
+                                        <span class="text-muted ms-1" style="font-size: 0.7rem;">chez {{ item.cheapest_shop }}</span>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="text-end">
+                                {% for unit, total in item.to_buy.items() %}
+                                    <div class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 rounded-pill px-3 py-2 fs-6 fw-bold shadow-sm mb-1 d-inline-block">
+                                        {{ total|round(1) if total != total|int else total|int }} <span class="fw-normal">{{ unit }}</span>
+                                    </div>
+                                {% endfor %}
+                                
+                                {% if item.in_stock %}
+                                    <div class="badge bg-success text-white rounded-pill px-2 d-block mx-auto mt-1" style="font-size: 0.65rem;">
+                                        <i class="bi bi-box2-heart"></i> Stock déduit
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </label>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+
+                <button id="finishShoppingBtn" class="btn btn-dark w-100 rounded-pill py-3 fw-bold shadow-sm fs-5 d-flex align-items-center justify-content-center gap-2" style="background-color: var(--accent); border: none;">
+                    <i class="bi bi-box-arrow-in-down"></i> Transférer dans mon Garde-manger
+                </button>
+                {% else %}
+                <div class="text-center py-4 text-muted">
+                    <i class="bi bi-check-circle fs-1 text-success opacity-50"></i>
+                    <p class="mt-2 fw-bold">Vous avez déjà tout ce qu'il faut en stock !</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card border-0 rounded-4 bg-light">
+            <div class="card-body p-4">
+                <h6 class="fw-bold text-success mb-3 text-uppercase small"><i class="bi bi-box-seam-fill"></i> Déjà dans vos placards</h6>
+                
+                <div class="d-flex flex-wrap gap-2">
+                    {% set has_stock = false %}
+                    {% for item in result.items %}
+                        {% if item.in_stock and not item.to_buy %}
+                            {% set has_stock = true %}
+                            <div class="badge bg-white text-muted border px-3 py-2 shadow-sm d-flex align-items-center gap-2">
+                                <i class="bi bi-check-circle-fill text-success"></i>
+                                <span class="fw-bold text-dark">{{ item.name }}</span>
+                                <span class="fw-normal">
+                                    {% for unit, total in item.in_stock.items() %}
+                                        ({{ total|round(1) if total != total|int else total|int }} {{ unit }})
+                                    {% endfor %}
+                                </span>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if not has_stock %}
+                        <span class="text-muted small fst-italic">Aucun ingrédient de cette semaine n'est couvert par votre stock.</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+    </div>
 </div>
 
 {% else %}
-<div class="empty-state mt-4">
-  <i class="bi bi-calendar-x"></i>
-  <p>Aucun repas planifié pour cette semaine.</p>
-  <a href="{{ url_for('planning.meal_plan') }}" class="btn btn-accent">Aller au planning</a>
+<div class="text-center py-5 my-5">
+    <div class="mb-4">
+        <i class="bi bi-calendar-x text-muted" style="font-size: 4rem; opacity: 0.3;"></i>
+    </div>
+    <h4 class="fw-bold text-dark">Planning vide</h4>
+    <p class="text-muted">Planifiez vos repas de la semaine pour que l'IA génère votre liste de courses.</p>
+    <a href="{{ url_for('planning.meal_plan') }}" class="btn btn-accent rounded-pill mt-2 fw-bold px-4 shadow-sm">
+        Aller au planning
+    </a>
 </div>
 {% endif %}
 
@@ -161,80 +167,78 @@
 
 {% block scripts %}
 <script>
-// Check-all button
+// --- GESTION DES CHECKBOXES ---
 document.getElementById('checkAllBtn')?.addEventListener('click', () => {
-  const all = document.querySelectorAll('.shopping-check');
-  const anyUnchecked = [...all].some(c => !c.checked);
-  all.forEach(c => {
-    c.checked = anyUnchecked;
-    c.closest('.shopping-item').classList.toggle('checked', anyUnchecked);
-  });
+    const all = document.querySelectorAll('.shopping-check');
+    const anyUnchecked = [...all].some(c => !c.checked);
+    all.forEach(c => {
+        c.checked = anyUnchecked;
+        c.dispatchEvent(new Event('change')); // Déclenche l'animation visuelle (barré + opacité)
+    });
 });
 
-// Persist checked state in sessionStorage
+// Sauvegarde l'état des cases cochées dans le navigateur
 const KEY = 'shopping_{{ result.start_date }}';
 const saved = JSON.parse(sessionStorage.getItem(KEY) || '{}');
+
 document.querySelectorAll('.shopping-check').forEach((c, i) => {
-  if (saved[i]) { c.checked = true; c.closest('.shopping-item').classList.add('checked'); }
-  c.addEventListener('change', () => {
-    const state = {};
-    document.querySelectorAll('.shopping-check').forEach((ch, j) => state[j] = ch.checked);
-    sessionStorage.setItem(KEY, JSON.stringify(state));
-  });
+    // Restaure l'état au rechargement
+    if (saved[i]) { 
+        c.checked = true; 
+        c.closest('.shopping-item').classList.add('opacity-50', 'text-decoration-line-through'); 
+    }
+    
+    // Sauvegarde à chaque clic
+    c.addEventListener('change', () => {
+        const state = {};
+        document.querySelectorAll('.shopping-check').forEach((ch, j) => state[j] = ch.checked);
+        sessionStorage.setItem(KEY, JSON.stringify(state));
+    });
 });
 
-// Fonction pour afficher une notification (empruntée à tes autres pages)
-function showToast(msg, type='info') {
-  const t = document.createElement('div');
-  t.className = `off-toast off-toast-${type}`; t.textContent = msg;
-  document.body.appendChild(t);
-  requestAnimationFrame(() => t.classList.add('show'));
-  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 3500);
-}
-
-// Logique du bouton "Courses terminées"
+// --- TRANSFERT VERS LE GARDE-MANGER ---
 document.getElementById('finishShoppingBtn')?.addEventListener('click', async () => {
-  const btn = document.getElementById('finishShoppingBtn');
-  const checkedBoxes = document.querySelectorAll('.shopping-check:checked');
-  
-  if (checkedBoxes.length === 0) {
-    showToast('Aucun article coché !', 'warn');
-    return;
-  }
-
-  // Animation de chargement
-  btn.disabled = true;
-  const originalText = btn.innerHTML;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Transfert en cours...';
-
-  let itemsToSend = [];
-  checkedBoxes.forEach(cb => {
-    const name = cb.dataset.name;
-    const purchases = JSON.parse(cb.dataset.purchases);
+    const btn = document.getElementById('finishShoppingBtn');
+    const checkedBoxes = document.querySelectorAll('.shopping-check:checked');
     
-    // purchases est un objet du type { "g": 500, "pièce": 2 }
-    for (const [unit, qty] of Object.entries(purchases)) {
-      itemsToSend.push({ name: name, quantity: qty, unit: unit });
+    if (checkedBoxes.length === 0) {
+        Swal.fire({ icon: 'warning', title: 'Oops...', text: 'Aucun article coché à transférer !', toast: true, position: 'top-end', timer: 3000, showConfirmButton: false });
+        return;
     }
-  });
 
-  try {
-    const res = await fetch('/api/shopping/to_pantry', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: itemsToSend })
+    // Animation UX
+    btn.disabled = true;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Transfert en cours...';
+
+    // Extraction des données cochées
+    let itemsToSend = [];
+    checkedBoxes.forEach(cb => {
+        const name = cb.dataset.name;
+        const purchases = JSON.parse(cb.dataset.purchases);
+        for (const [unit, qty] of Object.entries(purchases)) {
+            itemsToSend.push({ name: name, quantity: qty, unit: unit });
+        }
     });
-    
-    if ((await res.json()).ok) {
-      showToast('Ingrédients ajoutés au Garde-Manger !', 'success');
-      // Redirection automatique vers le garde-manger après 1.5 secondes
-      setTimeout(() => window.location.href = "{{ url_for('planning.pantry') }}", 1500);
+
+    try {
+        const res = await fetch('/api/shopping/to_pantry', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items: itemsToSend })
+        });
+        
+        if ((await res.json()).ok) {
+            Swal.fire({ icon: 'success', title: 'Achat terminé !', text: 'Les articles ont été ajoutés à votre garde-manger.', showConfirmButton: false, timer: 2000 });
+            // On vide le stockage local car la liste de courses est finie
+            sessionStorage.removeItem(KEY);
+            setTimeout(() => window.location.href = "{{ url_for('planning.pantry') }}", 1500);
+        }
+    } catch (e) {
+        Swal.fire({ icon: 'error', title: 'Erreur réseau', text: 'Impossible de transférer les articles.', toast: true, position: 'top-end', timer: 3000, showConfirmButton: false });
+        btn.disabled = false;
+        btn.innerHTML = originalText;
     }
-  } catch (e) {
-    showToast('Erreur lors du transfert', 'error');
-    btn.disabled = false;
-    btn.innerHTML = originalText;
-  }
 });
 </script>
 {% endblock %}

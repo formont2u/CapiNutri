@@ -25,6 +25,7 @@ def dashboard(date_str=None):
     exercise = crud.get_exercise_day(current_user.id, date_str)
     totals   = sum_day_nutrition(entries)
     burned   = sum(e.kcal_burned for e in exercise)
+    is_active = crud.get_day_active_status(current_user.id, date_str)
 
     daily_goal = crud.get_daily_goal(current_user.id, date_str)
     profile    = crud.get_profile(current_user.id)
@@ -63,7 +64,7 @@ def dashboard(date_str=None):
         date_str=date_str, d=d, prev_day=prev_day, next_day=next_day,
         entries=entries, exercise=exercise, totals=totals, burned=burned,
         goals=goals, daily_goal=daily_goal, by_meal=by_meal,
-        profile=profile, recipes=recipes,
+        profile=profile, recipes=recipes, is_active=is_active,
         # N'oublie pas d'ajouter ces deux variables ici 👇
         chart_labels=chart_labels, chart_kcal=chart_kcal
     )

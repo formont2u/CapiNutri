@@ -2,109 +2,203 @@
 {% block title %}{{ 'Ajouter un ingrédient' if is_new else 'Modifier — ' + entry.name }}{% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center gap-3 mb-4">
-  <a href="{{ url_for('library.library') }}" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
-    <i class="bi bi-arrow-left"></i> Bibliothèque
-  </a>
-  <h1 class="mb-0" style="font-size:1.4rem;font-weight:800">
-    {% if is_new %}
-    <i class="bi bi-plus-circle-fill" style="color:var(--accent)"></i> Ajouter un ingrédient
-    {% else %}
-    <i class="bi bi-pencil-fill" style="color:var(--accent)"></i> {{ entry.name }}
-    {% endif %}
-  </h1>
+
+<div class="d-flex align-items-center justify-content-between mb-4 pb-2 border-bottom">
+    <div class="d-flex align-items-center gap-3">
+        <a href="{{ url_for('library.library') }}" class="btn btn-light rounded-circle shadow-sm">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <h3 class="mb-0 fw-bold">
+            {% if is_new %}
+                <i class="bi bi-plus-circle-fill text-accent"></i> Ajouter un ingrédient
+            {% else %}
+                <i class="bi bi-pencil-fill text-accent"></i> {{ entry.name }}
+            {% endif %}
+        </h3>
+    </div>
 </div>
 
-<form method="post" action="{{ url_for('library.library_add') if is_new else url_for('library.library_edit', entry_id=entry.id) }}">
-<div class="form-panel">
+<div class="row g-4">
+    
+    <div class="col-lg-5">
+        
+        <div class="card border-0 shadow-sm rounded-4 bg-white mb-4">
+            <div class="card-body p-4">
+                <h5 class="fw-bold text-secondary mb-4"><i class="bi bi-tag-fill text-primary"></i> Identification</h5>
+                
+                <form id="ingredientForm" method="post" action="{{ url_for('library.library_add') if is_new else url_for('library.library_edit', entry_id=entry.id) }}">
+                    <input type="hidden" name="action" value="save_ingredient">
+                    
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted text-uppercase">Nom de l'aliment *</label>
+                        <input class="form-control form-control-lg bg-light border-0 shadow-sm fw-bold" name="name" required value="{{ entry.name }}" placeholder="ex. Lait entier, Oeufs frais…">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted text-uppercase">Marque / Fabricant</label>
+                        <input class="form-control bg-light border-0 shadow-sm" name="brand" value="{{ entry.brand or '' }}" placeholder="ex. Tine, Norvegia…">
+                    </div>
 
-  <div class="row g-3 mb-4">
-    <div class="col-md-5">
-      <label class="form-label">Nom *</label>
-      <input class="form-control" name="name" required value="{{ entry.name }}"
-             placeholder="ex. Lait entier, Oeufs frais…">
+                    <div class="mb-0">
+                        <label class="form-label small fw-bold text-muted text-uppercase">Code-barres (EAN)</label>
+                        <div class="input-group shadow-sm rounded-3 overflow-hidden">
+                            <span class="input-group-text bg-white border-0 text-muted"><i class="bi bi-upc-scan"></i></span>
+                            <input class="form-control border-0 bg-light" name="barcode" value="{{ entry.barcode or '' }}" placeholder="5701234567890">
+                        </div>
+                    </div>
+                </form> </div>
+        </div>
+
+        {% if not is_new %}
+        <div class="card border-0 shadow-sm rounded-4 bg-white">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold text-secondary mb-0"><i class="bi bi-shop text-success"></i> Tarifs (NOK)</h5>
+                    <span class="badge bg-light text-dark border rounded-pill">{{ ingredient_prices|length }} prix</span>
+                </div>
+
+                {% if ingredient_prices %}
+                <ul class="list-group list-group-flush mb-3">
+                    {% for p in ingredient_prices %}
+                    <li class="list-group-item px-0 py-2 border-bottom d-flex justify-content-between align-items-center bg-transparent">
+                        <div>
+                            {% set badge_color = 'bg-success' if p.shop_name == 'Kiwi' else 'bg-primary' if p.shop_name == 'REMA 1000' else 'bg-danger' if p.shop_name == 'Meny' else 'bg-warning text-dark' if p.shop_name == 'Extra' else 'bg-secondary' %}
+                            <span class="badge {{ badge_color }} rounded-pill shadow-sm d-inline-block mb-1" style="font-size: 0.65rem;">{{ p.shop_name }}</span>
+                            <div class="fw-bold text-dark" style="font-size: 0.9rem;">{{ p.price|round(2) }} kr <span class="text-muted fw-normal small">/ {{ p.ref_unit }}</span></div>
+                        </div>
+                        
+                        <form method="post" action="{{ url_for('library.library_edit', entry_id=entry.id) }}">
+                            <input type="hidden" name="action" value="delete_price">
+                            <input type="hidden" name="price_id" value="{{ p.id }}">
+                            <button type="submit" class="btn btn-sm btn-light text-danger rounded-circle border"><i class="bi bi-trash"></i></button>
+                        </form>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="text-muted small mb-3 fst-italic">Aucun prix enregistré pour cet ingrédient.</div>
+                {% endif %}
+
+                <form method="post" action="{{ url_for('library.library_edit', entry_id=entry.id) }}" class="p-3 bg-light rounded-4 border border-white shadow-sm mt-3">
+                    <input type="hidden" name="action" value="add_price">
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <select class="form-select form-select-sm border-0 shadow-sm" name="shop_id" required>
+                                <option value="">Magasin...</option>
+                                {% for shop in shops %}
+                                    <option value="{{ shop.id }}">{{ shop.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-7">
+                            <div class="input-group input-group-sm shadow-sm overflow-hidden">
+                                <input type="number" step="any" min="0" class="form-control border-0" name="price" placeholder="Prix" required>
+                                <span class="input-group-text border-0 bg-white text-muted fw-bold">kr</span>
+                            </div>
+                        </div>
+                        <div class="col-5">
+                            <select class="form-select form-select-sm border-0 shadow-sm" name="unit" required>
+                                <option value="kg">kg</option>
+                                <option value="l">Litre</option>
+                                <option value="pièce">Pièce</option>
+                                <option value="g">g</option>
+                                <option value="paquet">Paquet</option>
+                            </select>
+                        </div>
+                        <div class="col-12 mt-2">
+                            <button type="submit" class="btn btn-dark btn-sm w-100 rounded-pill fw-bold" style="background-color: var(--accent); border:none;">
+                                <i class="bi bi-plus-lg"></i> Ajouter ce prix
+                            </button>
+                        </div>
+                    </div>
+                </form>
+
+            </div>
+        </div>
+        {% else %}
+        <div class="alert alert-warning border-0 shadow-sm rounded-4 small">
+            <i class="bi bi-info-circle-fill"></i> Sauvegardez cet ingrédient une première fois pour pouvoir y associer des prix par supermarché.
+        </div>
+        {% endif %}
+
     </div>
-    <div class="col-md-4">
-      <label class="form-label">Marque <span style="color:#bbb;font-weight:400">(optionnel)</span></label>
-      <input class="form-control" name="brand" value="{{ entry.brand or '' }}" placeholder="ex. Tine, Norvegia…">
+
+    <div class="col-lg-7">
+        <div class="card border-0 shadow-sm rounded-4 bg-white h-100">
+            <div class="card-body p-4">
+                <h5 class="fw-bold text-secondary mb-4"><i class="bi bi-fire text-accent"></i> Composition Nutritionnelle</h5>
+                
+                <div class="alert alert-info border-0 rounded-4 mb-4 small">
+                    <i class="bi bi-info-circle-fill"></i> Valeurs nutritionnelles <strong>pour 100 g / 100 ml</strong>.
+                </div>
+                
+                <ul class="nav nav-pills nav-sm mb-4 gap-1" id="nutrTabs" role="tablist">
+                    <li class="nav-item"><button type="button" class="nav-link active py-1 px-3 fw-bold" data-bs-toggle="pill" data-bs-target="#macros">Macros</button></li>
+                    <li class="nav-item"><button type="button" class="nav-link py-1 px-3 fw-bold" data-bs-toggle="pill" data-bs-target="#glucides">Glucides</button></li>
+                    <li class="nav-item"><button type="button" class="nav-link py-1 px-3 fw-bold" data-bs-toggle="pill" data-bs-target="#lipides">Lipides</button></li>
+                    <li class="nav-item"><button type="button" class="nav-link py-1 px-3 fw-bold" data-bs-toggle="pill" data-bs-target="#mineraux">Minéraux</button></li>
+                    <li class="nav-item"><button type="button" class="nav-link py-1 px-3 fw-bold" data-bs-toggle="pill" data-bs-target="#vitamines">Vitamines</button></li>
+                    <li class="nav-item"><button type="button" class="nav-link py-1 px-3 fw-bold text-warning" data-bs-toggle="pill" data-bs-target="#usda">USDA +</button></li>
+                </ul>
+
+                <div class="tab-content">
+                    {% macro nutr_input_field(fname) %}
+                        {% set label, unit = NUTRIENT_LABELS[fname] %}
+                        <div class="col-6 col-md-4 mb-3">
+                            <label class="form-label small fw-bold text-muted mb-1">{{ label }} <span class="text-secondary fw-normal">({{ unit }})</span></label>
+                            <input type="number" step="any" min="0" class="form-control form-control-sm bg-light border-0 shadow-sm" form="ingredientForm" name="nutr_{{ fname }}" 
+                                   value="{{ entry[fname + '_100g']|round(4) if entry[fname + '_100g'] is not none and entry[fname + '_100g'] != '' else '' }}" placeholder="—">
+                        </div>
+                    {% endmacro %}
+
+                    <div class="tab-pane fade show active" id="macros"><div class="row">{% for f in MACRO_FIELDS %}{{ nutr_input_field(f) }}{% endfor %}</div></div>
+                    <div class="tab-pane fade" id="glucides"><div class="row">{% for f in CARB_FIELDS %}{{ nutr_input_field(f) }}{% endfor %}</div></div>
+                    <div class="tab-pane fade" id="lipides"><div class="row">{% for f in FAT_FIELDS %}{{ nutr_input_field(f) }}{% endfor %}</div></div>
+                    <div class="tab-pane fade" id="mineraux"><div class="row">{% for f in MICRO_FIELDS %}{{ nutr_input_field(f) }}{% endfor %}</div></div>
+                    <div class="tab-pane fade" id="vitamines"><div class="row">{% for f in VITAMIN_FIELDS %}{{ nutr_input_field(f) }}{% endfor %}</div></div>
+                    <div class="tab-pane fade" id="usda"><div class="row">{% for f in USDA_FIELDS %}{{ nutr_input_field(f) }}{% endfor %}</div></div>
+                </div>
+            </div>
+        </div>
     </div>
-    <div class="col-md-3">
-      <label class="form-label">Code-barres <span style="color:#bbb;font-weight:400">(optionnel)</span></label>
-      <input class="form-control" name="barcode" value="{{ entry.barcode or '' }}" placeholder="ex. 5701234567890">
-    </div>
-  </div>
-
-  <p class="mb-3" style="font-size:.85rem;color:#888">
-    <i class="bi bi-info-circle"></i> Toutes les valeurs nutritionnelles sont <strong>pour 100 g</strong>.
-  </p>
-
-  {% macro nutr_field(fname) %}
-  {% set label, unit = NUTRIENT_LABELS[fname] %}
-  <div class="nutr-field">
-    <label>{{ label }} <span class="nutr-unit">{{ unit }}</span></label>
-    <input class="form-control form-control-sm nutr-input" name="nutr_{{ fname }}"
-           type="number" min="0" step="any" placeholder="—"
-           value="{{ entry[fname + '_100g']|round(4) if entry[fname + '_100g'] is not none and entry[fname + '_100g'] != '' else '' }}">
-  </div>
-  {% endmacro %}
-
-  <div class="nutr-section-tabs lib-edit-tabs">
-    <button type="button" class="nutr-tab active" data-section="macros">Macros</button>
-    <button type="button" class="nutr-tab" data-section="glucides">Glucides</button>
-    <button type="button" class="nutr-tab" data-section="lipides">Lipides</button>
-    <button type="button" class="nutr-tab" data-section="micro">Minéraux</button>
-    <button type="button" class="nutr-tab" data-section="vitamines">Vitamines</button>
-    <button type="button" class="nutr-tab nutr-tab-usda" data-section="usda">USDA +</button>
-  </div>
-  <div class="nutr-section active" data-section="macros">
-    <div class="nutr-grid-4">{% for f in MACRO_FIELDS %}{{ nutr_field(f) }}{% endfor %}</div>
-  </div>
-  <div class="nutr-section" data-section="glucides">
-    <div class="nutr-grid-4">{% for f in CARB_FIELDS %}{{ nutr_field(f) }}{% endfor %}</div>
-  </div>
-  <div class="nutr-section" data-section="lipides">
-    <div class="nutr-grid-4">{% for f in FAT_FIELDS %}{{ nutr_field(f) }}{% endfor %}</div>
-  </div>
-  <div class="nutr-section" data-section="micro">
-    <div class="nutr-grid-4">{% for f in MICRO_FIELDS %}{{ nutr_field(f) }}{% endfor %}</div>
-  </div>
-  <div class="nutr-section" data-section="vitamines">
-    <div class="nutr-grid-4">{% for f in VITAMIN_FIELDS %}{{ nutr_field(f) }}{% endfor %}</div>
-  </div>
-  <div class="nutr-section" data-section="usda">
-    <div class="nutr-grid-4">{% for f in USDA_FIELDS %}{{ nutr_field(f) }}{% endfor %}</div>
-  </div>
-
 </div>
 
-<div class="d-flex gap-3 mt-4 align-items-center">
-  <button type="submit" class="btn btn-accent px-4 py-2 d-flex align-items-center gap-2">
-    <i class="bi bi-floppy"></i> {{ 'Ajouter à la bibliothèque' if is_new else 'Sauvegarder' }}
-  </button>
-  <a href="{{ url_for('library.library') }}" class="btn btn-outline-secondary">Annuler</a>
-  {% if not is_new %}
-  <form method="post" action="{{ url_for('library.library_delete', entry_id=entry.id) }}"
-        class="ms-auto" onsubmit="return confirm('Supprimer définitivement ?')">
-    <button class="btn btn-outline-danger d-flex align-items-center gap-1">
-      <i class="bi bi-trash"></i> Supprimer
+<div class="d-flex flex-wrap gap-3 mt-4 align-items-center">
+    <button type="submit" form="ingredientForm" class="btn btn-accent rounded-pill px-5 py-2 fw-bold shadow-sm">
+        <i class="bi bi-floppy"></i> {{ 'Ajouter à la bibliothèque' if is_new else 'Sauvegarder les modifications' }}
     </button>
-  </form>
-  {% endif %}
+    <a href="{{ url_for('library.library') }}" class="btn btn-outline-secondary rounded-pill px-4 fw-bold">Annuler</a>
+    
+    {% if not is_new %}
+        <button type="button" onclick="confirmDelete()" class="btn btn-outline-danger rounded-pill px-4 fw-bold ms-md-auto">
+            <i class="bi bi-trash"></i> Supprimer l'aliment
+        </button>
+    {% endif %}
 </div>
-</form>
+
+{% if not is_new %}
+<form id="deleteForm" method="post" action="{{ url_for('library.library_delete', entry_id=entry.id) }}" style="display:none;"></form>
+{% endif %}
+
 {% endblock %}
 
 {% block scripts %}
 <script>
-document.querySelectorAll('.nutr-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    const s = tab.dataset.section;
-    document.querySelectorAll('.nutr-tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.nutr-section').forEach(sec => sec.classList.remove('active'));
-    tab.classList.add('active');
-    document.querySelector(`.nutr-section[data-section="${s}"]`)?.classList.add('active');
-  });
-});
+function confirmDelete() {
+    Swal.fire({
+        title: 'Supprimer définitivement ?',
+        text: "Cet aliment sera retiré de la bibliothèque. Ses prix seront également supprimés.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#e53935',
+        cancelButtonColor: '#95a5a6',
+        confirmButtonText: 'Oui, supprimer',
+        cancelButtonText: 'Annuler'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            document.getElementById('deleteForm').submit();
+        }
+    });
+}
 </script>
 {% endblock %}
-

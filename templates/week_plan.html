@@ -52,30 +52,57 @@
   
   {% for day in days %}
     {% set dt = day.data.daily_totals %}
-    {% set goal_k = goals.kcal or 2000 %}
-    {% set pct_k = [(dt.kcal / goal_k * 100), 100]|min %}
-  
+    {% set is_active = active_statuses.get(day.date, False) %}
+    
+    {% if goals.training and goals.rest %}
+        {% set rest_k = goals.rest.kcal %}
+        {% set train_k = goals.training.kcal %}
+    {% else %}
+        {% set base_goal = goals.kcal or 2000 %}
+        {% set rest_k = base_goal %}
+        {% set train_k = base_goal + 400 %}
+    {% endif %}
+    
+    {% set current_goal = train_k if is_active else rest_k %}
+    {% set pct_k = [(dt.kcal / current_goal * 100), 100]|min %}
+
   <div class="d-flex flex-column gap-3 kanban-col">
     
-    <div class="card border-0 shadow-sm rounded-4 day-header {{ 'is-today bg-white' if day.is_today else 'bg-light' }}">
+    <div class="card border-0 shadow-sm rounded-4 day-header {{ 'is-today bg-white' if day.is_today else 'bg-light' }}"
+         id="day-header-{{ day.date }}"
+         data-consumed="{{ dt.kcal }}"
+         data-rest-goal="{{ rest_k }}"
+         data-train-goal="{{ train_k }}">
+         
       <div class="card-body p-3">
         <div class="d-flex justify-content-between align-items-center mb-2">
-          <h5 class="mb-0 fw-bold {{ 'text-accent' if day.is_today else 'text-dark' }}">{{ day.label }}</h5>
-          <a href="{{ url_for('tracking.dashboard', date_str=day.date) }}" class="btn btn-sm btn-outline-secondary border-0 rounded-circle" title="Voir la journée">
-            <i class="bi bi-box-arrow-in-up-right"></i>
+          
+          <div class="d-flex align-items-center gap-2">
+            <h5 class="mb-0 fw-bold {{ 'text-accent' if day.is_today else 'text-dark' }}">{{ day.label }}</h5>
+            
+            <button class="btn btn-sm btn-light border rounded-circle shadow-sm btn-toggle-active" 
+                    data-date="{{ day.date }}" 
+                    data-active="{{ 'true' if is_active else 'false' }}"
+                    title="Basculer Entraînement / Repos"
+                    style="width: 32px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center;">
+                {% if is_active %}
+                    <i class="bi bi-lightning-charge-fill text-warning fs-6"></i>
+                {% else %}
+                    <i class="bi bi-cup-hot-fill text-muted fs-6"></i>
+                {% endif %}
+            </button>
+          </div>
+
+          <a href="{{ url_for('planning.meal_plan', date_str=day.date) }}" class="btn btn-sm btn-outline-secondary border-0 rounded-circle" title="Éditer cette journée">
+            <i class="bi bi-pencil-fill"></i>
           </a>
         </div>
         
-        <div class="d-flex justify-content-between text-muted small fw-bold mb-1">
-          <span><span class="{{ 'text-danger' if dt.kcal > goal_k else 'text-dark' }}">{{ dt.kcal|int }}</span> / {{ goal_k|int }} kcal</span>
+        <div class="d-flex justify-content-between text-muted small fw-bold mb-1 mt-3" id="goal-text-{{ day.date }}">
+          <span><span class="{{ 'text-danger' if dt.kcal > current_goal else 'text-dark' }}">{{ dt.kcal|int }}</span> / {{ current_goal|int }} kcal</span>
         </div>
         <div class="progress mb-3" style="height: 6px; border-radius: 3px;">
-          <div class="progress-bar {{ 'bg-danger' if dt.kcal > goal_k else 'bg-success' }}" style="width: {{ pct_k }}%"></div>
-        </div>
-        
-        <div class="d-flex gap-2">
-          <span class="badge bg-white border text-muted shadow-sm"><i class="bi bi-droplet-fill text-success"></i> Fibres: {{ dt.fiber_g|int }}g</span>
-          <span class="badge bg-white border text-muted shadow-sm"><i class="bi bi-lightning-fill text-danger"></i> Fer: {{ dt.iron_mg|int }}mg</span>
+          <div class="progress-bar {{ 'bg-danger' if dt.kcal > current_goal else 'bg-success' }}" id="progress-bar-{{ day.date }}" style="width: {{ pct_k }}%; transition: width 0.4s ease, background-color 0.4s ease;"></div>
         </div>
       </div>
     </div>
@@ -103,7 +130,7 @@
         </div>
         
       {% else %}
-        <a href="{{ url_for('tracking.dashboard', date_str=day.date) }}" class="card border-0 rounded-4 text-center text-decoration-none meal-card" style="border: 2px dashed #dee2e6 !important; background: transparent;">
+        <a href="{{ url_for('planning.meal_plan', date_str=day.date) }}" class="card border-0 rounded-4 text-center text-decoration-none meal-card" style="border: 2px dashed #dee2e6 !important; background: transparent;">
           <div class="card-body p-3 text-muted opacity-75">
             <i class="bi bi-plus-circle fs-5 mb-1 d-block"></i>
             <span class="small fw-bold text-uppercase">{{ type_name }}</span>
@@ -118,4 +145,63 @@
   
 </div>
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.btn-toggle-active').forEach(btn => {
+    btn.addEventListener('click', async () => {
+        const dateStr = btn.dataset.date;
+        const currentlyActive = btn.dataset.active === 'true';
+        const newState = !currentlyActive;
+
+        // 1. Animation visuelle du bouton
+        btn.dataset.active = newState;
+        btn.innerHTML = newState 
+            ? '<i class="bi bi-lightning-charge-fill text-warning fs-6"></i>' 
+            : '<i class="bi bi-cup-hot-fill text-muted fs-6"></i>';
+
+        // 2. DOM UPDATE DYNAMIQUE (La vraie magie 🪄)
+        const headerCard = document.getElementById(`day-header-${dateStr}`);
+        if (headerCard) {
+            const consumed = parseFloat(headerCard.dataset.consumed);
+            const newGoal = parseFloat(newState ? headerCard.dataset.trainGoal : headerCard.dataset.restGoal);
+            const isOver = consumed > newGoal;
+
+            // Mise à jour du texte (ex: 2100 / 2400 kcal)
+            const goalText = document.getElementById(`goal-text-${dateStr}`);
+            goalText.innerHTML = `<span><span class="${isOver ? 'text-danger' : 'text-dark'}">${Math.round(consumed)}</span> / ${Math.round(newGoal)} kcal</span>`;
+
+            // Mise à jour de la barre (largeur et couleur)
+            const progressBar = document.getElementById(`progress-bar-${dateStr}`);
+            let newPct = (consumed / newGoal) * 100;
+            if (newPct > 100) newPct = 100;
+            
+            progressBar.style.width = `${newPct}%`;
+            progressBar.className = `progress-bar ${isOver ? 'bg-danger' : 'bg-success'}`;
+        }
+
+        // 3. Sauvegarde silencieuse en base de données
+        try {
+            const r = await fetch('/api/day/toggle_active', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ date: dateStr, is_active: newState })
+            });
+            if (!r.ok) throw new Error();
+            
+            Swal.fire({
+                toast: true, position: 'top-end', showConfirmButton: false, timer: 1500,
+                icon: 'success', title: newState ? 'Objectifs Entraînement appliqués ⚡' : 'Objectifs Repos appliqués 🛋️'
+            });
+        } catch(e) {
+            btn.dataset.active = currentlyActive;
+            btn.innerHTML = currentlyActive 
+                ? '<i class="bi bi-lightning-charge-fill text-warning fs-6"></i>' 
+                : '<i class="bi bi-cup-hot-fill text-muted fs-6"></i>';
+            Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Erreur réseau', showConfirmButton: false, timer: 2000 });
+        }
+    });
+});
+</script>
 {% endblock %}

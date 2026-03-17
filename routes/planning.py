@@ -27,6 +27,7 @@ def week_view(start=None):
     week_plan = crud.get_week_dashboard(current_user.id, start)
     profile = crud.get_profile(current_user.id)
     goals = get_effective_goals(profile)
+    active_statuses = crud.get_week_active_status(current_user.id, start_d)
 
     days_display = []
     jours_fr = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
@@ -45,7 +46,7 @@ def week_view(start=None):
     week_label = f"{start_d.day} {month_names[start_d.month-1]} → {end_d.day} {month_names[end_d.month-1]} {end_d.year}"
 
     # Renvoie vers le tableau Kanban
-    return render_template("week_plan.html", days=days_display, goals=goals, prev_week=prev_week, next_week=next_week, week_label=week_label)
+    return render_template("week_plan.html", days=days_display, goals=goals, active_statuses=active_statuses, prev_week=prev_week, next_week=next_week, week_label=week_label)
 
 
 # ── 2. LES STATISTIQUES (Bilan Analytique) ──
@@ -102,6 +103,8 @@ def meal_plan(date_str=None):
     profile = crud.get_profile(current_user.id)
     plan = crud.get_plan(current_user.id, date_str)
     recipes = crud.list_recipes() 
+
+    is_active = crud.get_day_active_status(current_user.id, date_str)
     
     meals_per_day = getattr(profile, "meals_per_day", 3)
     active_slots = list(MEAL_TYPES.keys())[:meals_per_day]
@@ -114,7 +117,7 @@ def meal_plan(date_str=None):
     return render_template("plan.html", plan=plan, date_str=date_str, today=today,
                            date_label=date_label, active_slots=active_slots,
                            meal_labels=MEAL_TYPES, meal_icons=MEAL_ICONS,
-                           meals_per_day=meals_per_day, recipes=recipes,
+                           meals_per_day=meals_per_day, recipes=recipes,is_active=is_active,
                            prev_date=(d - timedelta(days=1)).isoformat(),
                            next_date=(d + timedelta(days=1)).isoformat())
 
@@ -285,3 +288,15 @@ def api_shopping_to_pantry():
     for item in request.get_json(force=True).get("items", []):
         crud.add_pantry_item(current_user.id, item.get("name"), _f(item.get("quantity")), item.get("unit", ""))
     return jsonify({"ok": True})
+
+@planning_bp.route("/api/day/toggle_active", methods=["POST"])
+@login_required
+def toggle_day_active():
+    data = request.get_json()
+    date_str = data.get("date")
+    is_active = data.get("is_active", False)
+    
+    if date_str:
+        crud.set_day_active_status(current_user.id, date_str, is_active)
+        return jsonify({"ok": True, "is_active": is_active})
+    return jsonify({"ok": False}), 400

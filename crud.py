@@ -10,6 +10,8 @@ from db import get_connection
 from models import Recipe, Ingredient, UserProfile, FoodLogEntry, ExerciseEntry, User
 from constants import NUTRIENT_FIELDS, MEAL_TYPES
 
+from utils import normalize_string
+
 def _norm(name: str) -> str:
     """Normalise un nom d'ingrédient pour faciliter les comparaisons (ASCII, lowercase)."""
     if not name:
@@ -417,6 +419,77 @@ def get_week_dashboard(user_id: int, start_date: str) -> dict:
                 if meal.get(f"total_{k}"): week_plan[d_str]["daily_totals"][k] += meal[f"total_{k}"]
     return week_plan
 
+def get_week_shopping_list(user_id: int, start_date: str) -> dict:
+    """
+    Génère la liste de courses de la semaine en additionnant les ingrédients
+    de tous les repas planifiés.
+    """
+    with get_connection() as conn:
+        # 1. Récupérer tous les repas planifiés sur les 7 prochains jours
+        meals = conn.execute("""
+            SELECT mp.plan_date, mp.meal_type, r.id AS recipe_id, r.name AS recipe_name
+            FROM meal_plan mp
+            JOIN recipes r ON r.id = mp.recipe_id
+            WHERE mp.user_id = ? AND mp.plan_date >= ? AND mp.plan_date < date(?, '+7 days')
+            ORDER BY mp.plan_date ASC
+        """, (user_id, start_date, start_date)).fetchall()
+
+        days_list = [dict(m) for m in meals]
+
+        # 2. Agréger les ingrédients
+        items_dict = {}
+        if meals:
+            # Récupérer les IDs uniques des recettes de la semaine
+            recipe_ids = list(set([m["recipe_id"] for m in meals]))
+            placeholders = ",".join("?" for _ in recipe_ids)
+            
+            # Fetch tous les ingrédients de ces recettes d'un coup
+            ings_rows = conn.execute(f"""
+                SELECT recipe_id, name, quantity, unit 
+                FROM ingredients 
+                WHERE recipe_id IN ({placeholders})
+            """, tuple(recipe_ids)).fetchall()
+            
+            # Grouper par recette pour un accès rapide
+            ings_by_recipe = {}
+            for row in ings_rows:
+                rid = row["recipe_id"]
+                if rid not in ings_by_recipe:
+                    ings_by_recipe[rid] = []
+                ings_by_recipe[rid].append(dict(row))
+
+            # Construire la liste de courses
+            for meal in meals:
+                rid = meal["recipe_id"]
+                for ing in ings_by_recipe.get(rid, []):
+                    raw_name = ing["name"].strip()
+                    norm_key = _norm(raw_name) # On utilise ta fonction de normalisation existante
+                    qty = float(ing["quantity"] or 0)
+                    unit = (ing["unit"] or "").strip().lower()
+
+                    if norm_key not in items_dict:
+                        items_dict[norm_key] = {
+                            "name": raw_name, # Le nom original pour l'affichage
+                            "total_by_unit": {},
+                            "entries": [] # Pour savoir de quelle recette ça vient
+                        }
+                    
+                    if unit not in items_dict[norm_key]["total_by_unit"]:
+                        items_dict[norm_key]["total_by_unit"][unit] = 0.0
+                    items_dict[norm_key]["total_by_unit"][unit] += qty
+                    
+                    items_dict[norm_key]["entries"].append({
+                        "recipe": meal["recipe_name"],
+                        "qty": qty,
+                        "unit": unit
+                    })
+
+    return {
+        "start_date": start_date,
+        "days": days_list,
+        "items": list(items_dict.values())
+    }
+
 # ── 10. Pantry (Garde-manger) ─────────────────────────────────────────────────
 
 def list_pantry(user_id: int) -> list[dict]:
@@ -438,3 +511,95 @@ def update_pantry_item(user_id: int, item_id: int, name: str, quantity: Optional
 def delete_pantry_item(user_id: int, item_id: int) -> bool:
     with get_connection() as conn:
         return conn.execute("DELETE FROM pantry WHERE id=? AND user_id=?", (item_id, user_id)).rowcount > 0
+    
+def get_cookable_recipes(user_id: int) -> list[dict]:
+    """
+    Compare le stock du garde-manger avec les ingrédients des recettes.
+    Retourne une liste enrichie pour l'affichage des suggestions (pantry.html).
+    """
+    # 1. Récupération et normalisation du stock de l'utilisateur
+    pantry_items = list_pantry(user_id) 
+    stock = {}
+    for item in pantry_items:
+        norm_name = normalize_string(item["name"])
+        # On sécurise la conversion en float au cas où la base renvoie None
+        stock[norm_name] = stock.get(norm_name, 0) + float(item["quantity"] or 0)
+
+    # 2. Récupérer TOUTES les recettes via ta fonction existante
+    all_recipes_summary = list_recipes()
+    results = []
+    
+    for r_summary in all_recipes_summary:
+        # On utilise ta fonction get_recipe pour récupérer les objets Ingrédients attachés
+        recipe = get_recipe(r_summary["id"])
+        if not recipe:
+            continue
+            
+        missing = []
+        
+        # On vérifie chaque ingrédient de la recette
+        for ing in recipe.ingredients:
+            norm_ing_name = normalize_string(ing.name)
+            req_qty = float(ing.quantity or 0)
+            
+            # Vérification du stock
+            if norm_ing_name not in stock:
+                missing.append(ing.name)
+            elif stock[norm_ing_name] < req_qty:
+                missing.append(ing.name)
+                
+        # Calcul des calories pour l'affichage dans le badge
+        total_kcal = sum([i.kcal or 0 for i in recipe.ingredients if i.has_nutrition])
+        
+        results.append({
+            "id": recipe.id,
+            "name": recipe.name,
+            "total_kcal": total_kcal,
+            "cookable": len(missing) == 0,
+            "missing": missing
+        })
+        
+    # 3. Trier : Les recettes réalisables en premier, puis celles avec le moins de manquants
+    results.sort(key=lambda x: (not x["cookable"], len(x["missing"])))
+    
+    return results
+
+def set_day_active_status(user_id: int, date_str: str, is_active: bool) -> None:
+    """Marque un jour comme actif (entraînement) ou inactif (repos)."""
+    with get_connection() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS daily_status (
+                user_id INTEGER,
+                date_str TEXT,
+                is_active INTEGER DEFAULT 0,
+                PRIMARY KEY (user_id, date_str)
+            )
+        """)
+        conn.execute("""
+            INSERT INTO daily_status (user_id, date_str, is_active) 
+            VALUES (?, ?, ?)
+            ON CONFLICT(user_id, date_str) DO UPDATE SET is_active=excluded.is_active
+        """, (user_id, date_str, int(is_active)))
+
+def get_day_active_status(user_id: int, date_str: str) -> bool:
+    """Vérifie si un jour est marqué comme actif."""
+    with get_connection() as conn:
+        try:
+            row = conn.execute("SELECT is_active FROM daily_status WHERE user_id=? AND date_str=?", (user_id, date_str)).fetchone()
+            return bool(row["is_active"]) if row else False
+        except:
+            return False # Si la table n'existe pas encore
+
+def get_week_active_status(user_id: int, start_date: str) -> dict:
+    """Retourne un dictionnaire avec le statut (actif/repos) des 7 jours."""
+    with get_connection() as conn:
+        try:
+            rows = conn.execute("""
+                SELECT date_str, is_active FROM daily_status 
+                WHERE user_id = ? AND date_str >= ? AND date_str < date(?, '+7 days')
+            """, (user_id, start_date, start_date)).fetchall()
+            return {r["date_str"]: bool(r["is_active"]) for r in rows}
+        except Exception:
+            # Si la table n'existe pas encore ou qu'il y a un souci de lecture,
+            # on renvoie un dictionnaire vide (tous les jours seront considérés inactifs)
+            return {}

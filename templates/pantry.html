@@ -1,193 +1,220 @@
 {% extends "base.html" %}
-{% block title %}Garde-manger{% endblock %}
+{% block title %}Garde-manger — Capynutri{% endblock %}
 
 {% block content %}
-<div class="topbar">
-  <div>
-    <h1><i class="bi bi-basket3-fill" style="color:var(--accent)"></i> Garde-manger</h1>
-    <div class="subtitle">{{ items|length }} article{{ 's' if items|length != 1 }} en stock</div>
-  </div>
+
+<div class="d-flex align-items-center justify-content-between mb-4 pb-2 border-bottom">
+    <div>
+        <h2 class="mb-1 fw-bold text-dark"><i class="bi bi-basket3-fill text-accent"></i> Mon Garde-manger</h2>
+        <span class="text-muted fw-bold">{{ items|length }} article{{ 's' if items|length != 1 }} en stock</span>
+    </div>
 </div>
 
 <div class="row g-4">
 
-  {# ── Left: Stock ── #}
-  <div class="col-lg-5">
-    <div class="form-panel">
-      <div class="section-title"><i class="bi bi-plus-circle"></i> Ajouter un article</div>
-      <form method="post" class="d-flex gap-2 flex-wrap align-items-end">
-        <input type="hidden" name="action" value="add">
-        <div style="flex:2;min-width:140px">
-          <label class="form-label-sm">Ingrédient</label>
-          <input class="form-control form-control-sm" name="name" placeholder="ex. Farine, Lait…" required>
-        </div>
-        <div style="flex:1;min-width:80px">
-          <label class="form-label-sm">Quantité</label>
-          <input class="form-control form-control-sm" name="quantity" type="number" min="0" step="any" placeholder="500">
-        </div>
-        <div style="flex:1;min-width:70px">
-          <label class="form-label-sm">Unité</label>
-          <input class="form-control form-control-sm" name="unit" placeholder="g, L, pcs…">
-        </div>
-        <button class="btn btn-accent btn-sm" type="submit">
-          <i class="bi bi-plus-lg"></i> Ajouter
-        </button>
-      </form>
-
-      {% if items %}
-      <div class="mt-4">
-        <div class="section-title"><i class="bi bi-list-ul"></i> En stock</div>
-        <table class="lib-table mt-2">
-          <thead>
-            <tr>
-              <th>Article</th>
-              <th style="text-align:right">Quantité</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-          {% for item in items %}
-          <tr class="pantry-row" data-id="{{ item.id }}">
-            <td class="lib-name pantry-name-cell">
-              <span class="pantry-display">{{ item.name }}</span>
-              <input class="form-control form-control-sm pantry-edit-input d-none"
-                     name="name" value="{{ item.name }}">
-            </td>
-            <td class="lib-num pantry-qty-cell">
-              <span class="pantry-display">
-                {% if item.quantity %}{{ item.quantity|round(1) }}{% endif %}
-                {% if item.unit %}{{ item.unit }}{% endif %}
-                {% if not item.quantity and not item.unit %}—{% endif %}
-              </span>
-              <span class="pantry-edit-fields d-none d-flex gap-1 justify-content-end">
-                <input class="form-control form-control-sm" name="quantity" type="number"
-                       step="any" min="0" value="{{ item.quantity or '' }}" style="width:70px">
-                <input class="form-control form-control-sm" name="unit"
-                       value="{{ item.unit or '' }}" placeholder="unité" style="width:55px">
-              </span>
-            </td>
-            <td>
-              <div class="pantry-display lib-actions">
-                <button type="button" class="btn btn-sm btn-outline-secondary pantry-edit-btn"
-                        data-id="{{ item.id }}" title="Modifier">
-                  <i class="bi bi-pencil"></i>
-                </button>
-                <form method="post" style="display:inline"
-                      onsubmit="return confirm('Supprimer « {{ item.name }} » ?')">
-                  <input type="hidden" name="action" value="delete">
-                  <input type="hidden" name="item_id" value="{{ item.id }}">
-                  <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+    <div class="col-lg-5">
+        <div class="card border-0 shadow-sm rounded-4 bg-white mb-4">
+            <div class="card-body p-4">
+                <h5 class="fw-bold text-secondary mb-4"><i class="bi bi-plus-circle-fill text-primary"></i> Ajouter un article</h5>
+                
+                <form method="post" class="row g-2">
+                    <input type="hidden" name="action" value="add">
+                    <div class="col-12">
+                        <label class="form-label small fw-bold text-muted text-uppercase">Ingrédient</label>
+                        <input class="form-control bg-light border-0 shadow-sm" name="name" placeholder="ex. Farine, Lait, Oeufs..." required>
+                    </div>
+                    <div class="col-7">
+                        <label class="form-label small fw-bold text-muted text-uppercase">Quantité</label>
+                        <input class="form-control bg-light border-0 shadow-sm" name="quantity" type="number" min="0" step="any" placeholder="500">
+                    </div>
+                    <div class="col-5">
+                        <label class="form-label small fw-bold text-muted text-uppercase">Unité</label>
+                        <input class="form-control bg-light border-0 shadow-sm" name="unit" placeholder="g, L, pcs...">
+                    </div>
+                    <div class="col-12 mt-3">
+                        <button class="btn btn-accent w-100 rounded-pill fw-bold shadow-sm" type="submit">
+                            <i class="bi bi-plus-lg"></i> Ajouter au stock
+                        </button>
+                    </div>
                 </form>
-              </div>
-              <div class="pantry-edit-fields d-none lib-actions">
-                <form method="post" class="pantry-save-form">
-                  <input type="hidden" name="action" value="update">
-                  <input type="hidden" name="item_id" value="{{ item.id }}">
-                  <button class="btn btn-sm btn-accent pantry-save-btn" type="submit">
-                    <i class="bi bi-check2"></i>
-                  </button>
-                </form>
-                <button type="button" class="btn btn-sm btn-outline-secondary pantry-cancel-btn">
-                  <i class="bi bi-x"></i>
-                </button>
-              </div>
-            </td>
-          </tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% else %}
-      <div class="empty-state mt-4" style="padding:24px 0">
-        <i class="bi bi-basket3"></i>
-        <p>Garde-manger vide — ajoutez vos ingrédients disponibles.</p>
-      </div>
-      {% endif %}
-    </div>
-  </div>
-
-  {# ── Right: Recipes I can make ── #}
-  <div class="col-lg-7">
-    <div class="form-panel">
-      <div class="section-title">
-        <i class="bi bi-magic"></i> Ce que je peux cuisiner
-        <span style="font-size:.75rem;font-weight:400;color:#888"> — basé sur votre stock</span>
-      </div>
-
-      {% if not items %}
-      <div class="empty-state" style="padding:24px 0">
-        <i class="bi bi-question-circle"></i>
-        <p>Renseignez votre stock pour voir les recettes réalisables.</p>
-      </div>
-
-      {% elif cookable %}
-      <div class="cookable-list">
-        {% for r in cookable %}
-        <div class="cookable-row {{ 'fully-cookable' if r.cookable else 'almost-cookable' }}">
-          <div class="cookable-info">
-            <a href="{{ url_for('recipes.view_recipe', recipe_id=r.id) }}" class="cookable-name">
-              {{ r.name }}
-            </a>
-            {% if r.cookable %}
-            <span class="cookable-badge"><i class="bi bi-check2-circle"></i> Tout disponible</span>
-            {% else %}
-            <span class="almost-badge">
-              <i class="bi bi-exclamation-circle"></i>
-              Manque : {{ r.missing|join(', ') }}
-            </span>
-            {% endif %}
-          </div>
-          {% if r.total_kcal %}
-          <span class="kcal-chip"><i class="bi bi-fire"></i> {{ r.total_kcal|int }} kcal</span>
-          {% endif %}
+            </div>
         </div>
-        {% endfor %}
-      </div>
 
-      {% else %}
-      <div class="empty-state" style="padding:24px 0">
-        <i class="bi bi-journal-x"></i>
-        <p>Aucune recette réalisable avec le stock actuel.</p>
-        <a href="{{ url_for('recipes.new_recipe') }}" class="btn btn-outline-secondary btn-sm">
-          Créer des recettes
-        </a>
-      </div>
-      {% endif %}
-
+        <div class="card border-0 shadow-sm rounded-4 bg-white">
+            <div class="card-body p-4">
+                <h5 class="fw-bold text-secondary mb-3"><i class="bi bi-list-stars text-accent"></i> Inventaire actuel</h5>
+                
+                {% if items %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="small text-muted text-uppercase fw-bold">
+                            <tr>
+                                <th class="border-0 ps-0">Article</th>
+                                <th class="border-0 text-end">Quantité</th>
+                                <th class="border-0"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in items %}
+                            <tr class="pantry-row" data-id="{{ item.id }}">
+                                <td class="ps-0 border-0">
+                                    <span class="pantry-display fw-bold text-dark">{{ item.name }}</span>
+                                    <input class="form-control form-control-sm pantry-edit-input d-none border-accent" name="edit_name" value="{{ item.name }}">
+                                </td>
+                                <td class="text-end border-0">
+                                    <span class="pantry-display text-muted fw-bold">
+                                        {% if item.quantity %}{{ item.quantity|round(1) }}{% endif %}
+                                        <small>{{ item.unit or '' }}</small>
+                                    </span>
+                                    <div class="pantry-edit-fields d-none d-flex gap-1 justify-content-end">
+                                        <input class="form-control form-control-sm text-end" name="edit_quantity" type="number" step="any" value="{{ item.quantity or '' }}" style="width:70px">
+                                        <input class="form-control form-control-sm" name="edit_unit" value="{{ item.unit or '' }}" style="width:50px">
+                                    </div>
+                                </td>
+                                <td class="text-end pe-0 border-0">
+                                    <div class="pantry-display d-flex gap-1 justify-content-end">
+                                        <button type="button" class="btn btn-sm btn-light border pantry-edit-btn" title="Modifier"><i class="bi bi-pencil"></i></button>
+                                        <button type="button" onclick="confirmDeletePantry({{ item.id }}, '{{ item.name|replace("'", "\\'") }}')" class="btn btn-sm btn-outline-danger border-0"><i class="bi bi-trash"></i></button>
+                                    </div>
+                                    <div class="pantry-edit-fields d-none d-flex gap-1 justify-content-end">
+                                        <button type="button" class="btn btn-sm btn-success pantry-save-btn" data-id="{{ item.id }}"><i class="bi bi-check-lg"></i></button>
+                                        <button type="button" class="btn btn-sm btn-light border pantry-cancel-btn"><i class="bi bi-x"></i></button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4 text-muted">
+                    <i class="bi bi-inbox fs-1 opacity-25"></i>
+                    <p class="small mt-2 fw-bold">Votre garde-manger est vide.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
     </div>
-  </div>
 
+    <div class="col-lg-7">
+        <div class="card border-0 shadow-sm rounded-4 bg-white h-100">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="fw-bold text-secondary mb-0"><i class="bi bi-magic text-primary"></i> Suggestions de recettes</h5>
+                    <span class="badge bg-light text-primary border rounded-pill px-3">Basé sur votre stock</span>
+                </div>
+
+                {% if not items %}
+                <div class="text-center py-5">
+                    <i class="bi bi-arrow-left-circle fs-1 text-muted opacity-25"></i>
+                    <p class="mt-3 text-muted">Remplissez votre stock à gauche pour<br>débloquer les suggestions de l'IA.</p>
+                </div>
+                {% elif cookable %}
+                <div class="list-group list-group-flush">
+                    {% for r in cookable %}
+                    <div class="list-group-item px-0 py-3 border-bottom position-relative">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <a href="{{ url_for('recipes.view_recipe', recipe_id=r.id) }}" class="h6 fw-bold text-dark text-decoration-none stretched-link">
+                                    {{ r.name }}
+                                </a>
+                                <div class="mt-1">
+                                    {% if r.cookable %}
+                                    <span class="badge bg-success bg-opacity-10 text-success rounded-pill px-2 py-1 small">
+                                        <i class="bi bi-check-circle-fill me-1"></i> Tout est prêt !
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-warning bg-opacity-10 text-dark rounded-pill px-2 py-1 small" style="font-size: 0.7rem;">
+                                        <i class="bi bi-exclamation-triangle-fill me-1"></i> Manque : {{ r.missing|join(', ') }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% if r.total_kcal %}
+                            <span class="badge bg-light text-accent border rounded-pill">{{ r.total_kcal|int }} kcal</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-journal-x fs-1 text-muted opacity-25"></i>
+                    <p class="mt-3 text-muted">Aucune recette ne correspond à votre stock.<br><a href="{{ url_for('recipes.new_recipe') }}" class="text-accent fw-bold text-decoration-none">Ajoutez-en de nouvelles !</a></p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
 </div>
+
+<form id="pantryActionForm" method="post" style="display:none;">
+    <input type="hidden" name="action" id="actionInput">
+    <input type="hidden" name="item_id" id="itemIdInput">
+    <input type="hidden" name="name" id="nameInput">
+    <input type="hidden" name="quantity" id="qtyInput">
+    <input type="hidden" name="unit" id="unitInput">
+</form>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
-// Inline edit rows
+// --- GESTION DE L'EDITION INLINE ---
 document.querySelectorAll('.pantry-edit-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const row = btn.closest('.pantry-row');
-    row.querySelectorAll('.pantry-display').forEach(el => el.classList.add('d-none'));
-    row.querySelectorAll('.pantry-edit-input, .pantry-edit-fields').forEach(el => el.classList.remove('d-none'));
-  });
-});
-document.querySelectorAll('.pantry-cancel-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const row = btn.closest('.pantry-row');
-    row.querySelectorAll('.pantry-display').forEach(el => el.classList.remove('d-none'));
-    row.querySelectorAll('.pantry-edit-input, .pantry-edit-fields').forEach(el => el.classList.add('d-none'));
-  });
+    btn.addEventListener('click', () => {
+        const row = btn.closest('.pantry-row');
+        row.querySelectorAll('.pantry-display').forEach(el => el.classList.add('d-none'));
+        row.querySelectorAll('.pantry-edit-input, .pantry-edit-fields').forEach(el => el.classList.remove('d-none'));
+    });
 });
 
-// Wire save form: copy edited name+qty+unit fields into the save form
-document.querySelectorAll('.pantry-save-form').forEach(form => {
-  form.addEventListener('submit', () => {
-    const row = form.closest('.pantry-row');
-    const nameInput = row.querySelector('.pantry-edit-input');
-    const [qtyInput, unitInput] = row.querySelectorAll('.pantry-edit-fields input');
-    if (nameInput)  { const h = document.createElement('input'); h.type='hidden'; h.name='name';     h.value=nameInput.value;  form.appendChild(h); }
-    if (qtyInput)   { const h = document.createElement('input'); h.type='hidden'; h.name='quantity'; h.value=qtyInput.value;   form.appendChild(h); }
-    if (unitInput)  { const h = document.createElement('input'); h.type='hidden'; h.name='unit';     h.value=unitInput.value;  form.appendChild(h); }
-  });
+document.querySelectorAll('.pantry-cancel-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const row = btn.closest('.pantry-row');
+        row.querySelectorAll('.pantry-display').forEach(el => el.classList.remove('d-none'));
+        row.querySelectorAll('.pantry-edit-input, .pantry-edit-fields').forEach(el => el.classList.add('d-none'));
+    });
 });
+
+// --- SAUVEGARDE DE LA MODIFICATION ---
+document.querySelectorAll('.pantry-save-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const row = btn.closest('.pantry-row');
+        const id = btn.dataset.id;
+        const name = row.querySelector('input[name="edit_name"]').value;
+        const qty = row.querySelector('input[name="edit_quantity"]').value;
+        const unit = row.querySelector('input[name="edit_unit"]').value;
+
+        submitPantryAction('update', id, name, qty, unit);
+    });
+});
+
+// --- SUPPRESSION ---
+function confirmDeletePantry(id, name) {
+    Swal.fire({
+        title: 'Retirer du stock ?',
+        text: `Voulez-vous supprimer "${name}" de votre inventaire ?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#e53935',
+        confirmButtonText: 'Supprimer',
+        cancelButtonText: 'Annuler'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            submitPantryAction('delete', id);
+        }
+    });
+}
+
+// --- FONCTION DE SOUMISSION UNIQUE ---
+function submitPantryAction(action, id, name='', qty='', unit='') {
+    document.getElementById('actionInput').value = action;
+    document.getElementById('itemIdInput').value = id;
+    document.getElementById('nameInput').value = name;
+    document.getElementById('qtyInput').value = qty;
+    document.getElementById('unitInput').value = unit;
+    document.getElementById('pantryActionForm').submit();
+}
 </script>
 {% endblock %}
