@@ -37,6 +37,7 @@
 - [ ] Rethink current features to decide what should be simplified, extended, or connected better
 - [ ] Improve feature interactivity so recipes, planner, pantry, shopping, pricing, tags, and tracking work more as one system
 - [ ] Start a full UI refresh / polish pass across recipe form, planner, shopping, pantry, library, and dashboard
+- [ ] Conversion from liquid to gram is not yet functional, need density/rho
 
 ## Next
 

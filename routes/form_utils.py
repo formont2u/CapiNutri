@@ -58,5 +58,5 @@ def parse_library_nutrition(form, prefix: str = "nutr_") -> dict:
 
 def build_empty_library_entry() -> dict:
     entry = {f"{field}_100g": None for field in NUTRIENT_FIELDS}
-    entry.update({"id": None, "name": "", "brand": "", "barcode": "", "search_key": ""})
+    entry.update({"id": None, "name": "", "brand": "", "barcode": "", "search_key": "", "density_g_ml": None})
     return entry

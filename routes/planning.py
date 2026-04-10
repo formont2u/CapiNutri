@@ -106,23 +106,21 @@ def shopping_list(start=None):
     total_estimated_cost = 0.0
     for item in result["items"]:
         pantry_item = pantry_by_name.get(normalize_string(item["name"]))
-        unit_rows = crud.list_ingredient_units(item.get("library_id")) if item.get("library_id") else []
-        to_buy = {}
-        in_stock = {}
-
-        for unit, total_needed in item["total_by_unit"].items():
-            if pantry_item and (pantry_item["unit"] or "").lower() == (unit or "").lower():
-                stock_qty = pantry_item["quantity"] or 0
-                if stock_qty >= total_needed:
-                    in_stock[unit] = total_needed
-                else:
-                    in_stock[unit] = stock_qty
-                    to_buy[unit] = total_needed - stock_qty
-            else:
-                to_buy[unit] = total_needed
+        library_context = crud.get_library_context(item.get("library_id"), item["name"])
+        to_buy, in_stock = crud.split_quantity_by_stock(
+            item["total_by_unit"],
+            pantry_item.get("quantity") if pantry_item else None,
+            pantry_item.get("unit", "") if pantry_item else "",
+            unit_rows=library_context.get("unit_rows"),
+            density_g_ml=library_context.get("density_g_ml"),
+        )
 
         item["to_buy"] = to_buy
         item["in_stock"] = in_stock
+        total_required = sum(item["total_by_unit"].values())
+        total_covered = sum(item["in_stock"].values())
+        item["coverage_ratio"] = round((total_covered / total_required), 2) if total_required else 0.0
+        item["uses_density"] = bool(library_context.get("density_g_ml"))
         item["prices"] = price_data.get(normalize_string(item["name"]), [])
         item["estimated_cost"] = 0.0
         item["cheapest_shop"] = None
@@ -132,7 +130,14 @@ def shopping_list(start=None):
             item["cheapest_shop"] = best_price["shop_name"]
             item["estimated_cost"] = round(
                 sum(
-                    calculate_cost(quantity, unit, best_price["price"], best_price["ref_unit"], unit_rows)
+                    calculate_cost(
+                        quantity,
+                        unit,
+                        best_price["price"],
+                        best_price["ref_unit"],
+                        library_context.get("unit_rows"),
+                        density_g_ml=library_context.get("density_g_ml"),
+                    )
                     for unit, quantity in item["to_buy"].items()
                 ),
                 2,

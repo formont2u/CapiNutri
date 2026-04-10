@@ -111,7 +111,7 @@
     <div id="ingList">
       {% set ings = recipe.ingredients if recipe and recipe.ingredients else [none] %}
       {% for ing in ings %}
-        <div class="ing-block bg-white border rounded-4 p-3 mb-3 shadow-sm" data-library-id="{{ ing.library_id if ing and ing.library_id else '' }}" data-unit-definitions='{{ (ing.unit_definitions if ing and ing.unit_definitions else []) | tojson | safe }}'>
+        <div class="ing-block bg-white border rounded-4 p-3 mb-3 shadow-sm" data-library-id="{{ ing.library_id if ing and ing.library_id else '' }}" data-density-g-ml="{{ ing.density_g_ml if ing and ing.density_g_ml is not none else '' }}" data-unit-definitions='{{ (ing.unit_definitions if ing and ing.unit_definitions else []) | tojson | safe }}'>
           
           <div class="row g-2 align-items-center mb-2 position-relative">
             <div class="col-12 col-md-4">
@@ -352,6 +352,11 @@ function buildUnitConversionMap(block) {
   return map;
 }
 
+function getDensityGml(block) {
+  const density = parseFloat(block.dataset.densityGml || '');
+  return Number.isFinite(density) && density > 0 ? density : null;
+}
+
 function toBaseUnits(block, qty, unit) {
   const conversion = buildUnitConversionMap(block)[normalizeUnitKey(unit)];
   if (!conversion) return null;
@@ -360,7 +365,13 @@ function toBaseUnits(block, qty, unit) {
 
 function toNutritionScale(block, qty, unit) {
   const base = toBaseUnits(block, qty, unit);
-  return base ? base.amount / 100 : null;
+  if (!base) return null;
+  if (base.kind === 'mass') return base.amount / 100;
+  if (base.kind === 'volume') {
+    const density = getDensityGml(block);
+    return density ? (base.amount * density) / 100 : null;
+  }
+  return null;
 }
 
 function renderUnitOptions(unitDefinitions, selectedUnit = 'g') {
@@ -390,8 +401,9 @@ async function fetchLibraryUnits(libraryId) {
   return await response.json();
 }
 
-function assignIngredientMetadata(block, libraryId, unitDefinitions, selectedUnit = null) {
+function assignIngredientMetadata(block, libraryId, unitDefinitions, selectedUnit = null, densityGml = null) {
   block.dataset.libraryId = libraryId || '';
+  block.dataset.densityGml = densityGml ?? '';
   const hiddenInput = block.querySelector('input[name="ing_library_id"]');
   if (hiddenInput) hiddenInput.value = libraryId || '';
   applyUnitDefinitions(block, unitDefinitions || [], selectedUnit);
@@ -592,6 +604,7 @@ function fillFromBackend(block, product, qty, unit) {
   if (!Object.keys(per100g).length) return false;
   
   block.dataset.per100g = JSON.stringify(per100g);
+  block.dataset.densityGml = product.density_g_ml ?? block.dataset.densityGml ?? '';
 
   let parsedQty = parseFloat(qty);
   if (isNaN(parsedQty)) {
@@ -666,21 +679,23 @@ function renderDropdown(dd, products, block) {
       dd.style.display = 'none';
       let libraryId = p.id || null;
       let unitDefinitions = p.units || [];
+      let densityGml = p.density_g_ml ?? null;
       if (!libraryId || p.source !== 'library') {
         try {
           const saveResponse = await fetch('/api/library/save', {
             method: 'POST',
             headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({ name: p.name, brand: p.brand||'', barcode: p.barcode||'', per_100g: p.per_100g, library_id: p.source === 'library' ? p.id : null })
+            body: JSON.stringify({ name: p.name, brand: p.brand||'', barcode: p.barcode||'', per_100g: p.per_100g, library_id: p.source === 'library' ? p.id : null, density_g_ml: p.density_g_ml ?? null })
           });
           const saveResult = await saveResponse.json();
           libraryId = saveResult.id || libraryId;
           unitDefinitions = saveResult.units || unitDefinitions;
+          densityGml = saveResult.density_g_ml ?? densityGml;
         } catch(e) {}
       } else if (!unitDefinitions.length) {
         unitDefinitions = await fetchLibraryUnits(libraryId);
       }
-      assignIngredientMetadata(block, libraryId, unitDefinitions);
+      assignIngredientMetadata(block, libraryId, unitDefinitions, null, densityGml);
       const qty  = block.querySelector('.ing-qty-input').value;
       const unit = block.querySelector('.ing-unit-input').value.trim();
       if (!fillFromBackend(block, p, qty, unit)) { showToast('Données insuffisantes.', 'warn'); return; }
@@ -702,7 +717,7 @@ function wireOFF(block) {
     const q   = nameIn.value.trim();
     const src = getSource(block);
     if (block.dataset.libraryId && q !== nameIn.defaultValue) {
-      assignIngredientMetadata(block, null, []);
+      assignIngredientMetadata(block, null, [], null, null);
     }
     if (q.length < 2) { close(); return; }
     if (q === lastQ && src === lastSrc) return;
@@ -771,11 +786,11 @@ async function ensureLibraryIngredient(block) {
     const response = await fetch('/api/library/save', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ name: ingredientName, brand: '', barcode: '', per_100g: per100g })
+        body: JSON.stringify({ name: ingredientName, brand: '', barcode: '', per_100g: per100g, density_g_ml: block.dataset.densityGml || null })
     });
     if (!response.ok) return null;
     const result = await response.json();
-    assignIngredientMetadata(block, result.id, result.units || []);
+    assignIngredientMetadata(block, result.id, result.units || [], null, result.density_g_ml ?? block.dataset.densityGml ?? null);
     return result.id;
 }
 
@@ -858,7 +873,7 @@ document.getElementById('quickUnitForm').addEventListener('submit', async (e) =>
             return;
         }
 
-        assignIngredientMetadata(activeUnitBlock, libraryId, result.units || [], unitName);
+        assignIngredientMetadata(activeUnitBlock, libraryId, result.units || [], unitName, activeUnitBlock.dataset.densityGml || null);
         const select = activeUnitBlock.querySelector('.ing-unit-input');
         select.value = unitName;
         select.dispatchEvent(new Event('input'));
@@ -967,6 +982,7 @@ function buildRow() {
   const block = document.createElement('div'); 
   block.className = 'ing-block bg-white border rounded-4 p-3 mb-3 shadow-sm';
   block.dataset.libraryId = '';
+  block.dataset.densityGml = '';
   block.dataset.unitDefinitions = '[]';
   
   // HTML synchronisé avec le bouton Pricing

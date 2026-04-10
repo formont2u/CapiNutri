@@ -69,6 +69,7 @@ def library_add():
             brand=request.form.get("brand", "").strip(),
             barcode=request.form.get("barcode", "").strip(),
             per_100g=parse_library_nutrition(request.form),
+            density_g_ml=request.form.get("density_g_ml", type=float),
         )
         flash("Ingrédient ajouté à la bibliothèque !", "success")
         return redirect(url_for("library.library"))
@@ -96,6 +97,7 @@ def library_edit(entry_id):
                 brand=request.form.get("brand", "").strip(),
                 barcode=request.form.get("barcode", "").strip(),
                 per_100g=parse_library_nutrition(request.form),
+                density_g_ml=request.form.get("density_g_ml", type=float),
             )
             return redirect(url_for("library.library"))
 
@@ -176,18 +178,27 @@ def api_library_save():
     name = data.get("name", "").strip()
     per_100g = data.get("per_100g", {})
     library_id = data.get("library_id")
+    density_g_ml = data.get("density_g_ml")
 
     if not name or not per_100g:
         return jsonify({"ok": False, "error": "name and per_100g required"}), 400
     if library_id:
         nutrition_api.library_increment(int(library_id))
-        return jsonify({"ok": True, "id": library_id, "action": "incremented", "units": crud.list_ingredient_units(int(library_id))})
+        entry = crud.get_library_entry(int(library_id)) or {}
+        return jsonify({
+            "ok": True,
+            "id": library_id,
+            "action": "incremented",
+            "units": crud.list_ingredient_units(int(library_id)),
+            "density_g_ml": entry.get("density_g_ml"),
+        })
 
     saved_id = nutrition_api.library_save(
         name,
         data.get("brand", "").strip(),
         data.get("barcode", "").strip(),
         per_100g,
+        density_g_ml=float(density_g_ml) if density_g_ml not in (None, "") else None,
     )
     return jsonify(
         {
@@ -195,6 +206,7 @@ def api_library_save():
             "id": saved_id,
             "action": "saved",
             "units": crud.list_ingredient_units(saved_id),
+            "density_g_ml": (crud.get_library_entry(saved_id) or {}).get("density_g_ml"),
         }
     )
 
@@ -243,6 +255,7 @@ def api_library_search():
                 "protein_g_100g": entry.get("protein_g_100g"),
                 "carbs_g_100g": entry.get("carbs_g_100g"),
                 "fat_g_100g": entry.get("fat_g_100g"),
+                "density_g_ml": entry.get("density_g_ml"),
             }
             for entry in entries[:8]
         ]

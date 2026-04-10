@@ -136,6 +136,7 @@ def init_db() -> None:
                 search_key TEXT NOT NULL,
                 brand      TEXT DEFAULT '',
                 barcode    TEXT DEFAULT '',
+                density_g_ml REAL,
 {nutr_lib}
                 _placeholder INTEGER,
                 used_count INTEGER NOT NULL DEFAULT 1,
@@ -196,6 +197,9 @@ def _run_migrations() -> None:
 
         if "library_id" not in ing_cols:
             conn.execute("ALTER TABLE ingredients ADD COLUMN library_id INTEGER REFERENCES ingredient_library(id) ON DELETE SET NULL")
+
+        if "density_g_ml" not in lib_cols:
+            conn.execute("ALTER TABLE ingredient_library ADD COLUMN density_g_ml REAL")
 
         for field in NUTRIENT_FIELDS:
             if field not in ing_cols:

@@ -8,6 +8,7 @@ from typing import Optional
 from constants import MEAL_TYPES, NUTRIENT_FIELDS
 from db import get_connection
 from models import BodyTrackingEntry, ExerciseEntry, FoodLogEntry, Ingredient, Recipe, User, UserProfile
+from services.unit_conversion import convert_between_units
 from utils import normalize_string
 
 WEEKLY_TOTAL_FIELDS = ("kcal", "protein_g", "carbs_g", "fat_g", "fiber_g", "iron_mg")
@@ -18,6 +19,8 @@ DEFAULT_TAGS = (
     {"name": "snack", "color": "#fd7e14", "icon": "bi-cup-hot-fill"},
     {"name": "vegetarian", "color": "#2f9e44", "icon": "bi-flower1"},
     {"name": "vegan", "color": "#20c997", "icon": "bi-leaf-fill"},
+    {"name": "sauce", "color": "#b35c1e", "icon": "bi-droplet-fill"},
+    {"name": "soup", "color": "#0ea5a4", "icon": "bi-bowl-hot-fill"},
     {"name": "high-protein", "color": "#e03131", "icon": "bi-lightning-charge-fill"},
     {"name": "cheap", "color": "#198754", "icon": "bi-piggy-bank-fill"},
     {"name": "quick", "color": "#6c757d", "icon": "bi-stopwatch-fill"},
@@ -604,6 +607,7 @@ def delete_daily_goal(user_id: int, date_str: str) -> bool:
 def list_library(search: str = "") -> list[dict]:
     sql = """
         SELECT il.id, il.name, il.brand, il.barcode, il.used_count, il.updated_at,
+               il.density_g_ml,
                COUNT(iu.id) AS unit_count,
                kcal_100g, protein_g_100g, carbs_g_100g, fat_g_100g
         FROM ingredient_library il
@@ -621,7 +625,7 @@ def list_library(search: str = "") -> list[dict]:
 
 
 def get_library_entry(entry_id: int) -> Optional[dict]:
-    columns = ["id", "name", "search_key", "brand", "barcode", "used_count", *[f"{field}_100g" for field in NUTRIENT_FIELDS]]
+    columns = ["id", "name", "search_key", "brand", "barcode", "density_g_ml", "used_count", *[f"{field}_100g" for field in NUTRIENT_FIELDS]]
     with get_connection() as conn:
         row = conn.execute(
             f"SELECT {', '.join(columns)} FROM ingredient_library WHERE id = ?",
@@ -630,17 +634,17 @@ def get_library_entry(entry_id: int) -> Optional[dict]:
         return dict(row) if row else None
 
 
-def update_library_entry(entry_id: int, name: str, brand: str, barcode: str, per_100g: dict) -> bool:
+def update_library_entry(entry_id: int, name: str, brand: str, barcode: str, per_100g: dict, density_g_ml: float | None = None) -> bool:
     nutrient_values = {f"{field}_100g": per_100g.get(field) for field in NUTRIENT_FIELDS}
     set_clause = ", ".join(f"{column} = ?" for column in nutrient_values)
     with get_connection() as conn:
         return conn.execute(
             f"""
             UPDATE ingredient_library
-            SET name = ?, search_key = ?, brand = ?, barcode = ?, {set_clause}, updated_at = CURRENT_TIMESTAMP
+            SET name = ?, search_key = ?, brand = ?, barcode = ?, density_g_ml = ?, {set_clause}, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
             """,
-            [name, normalize_string(name), brand, barcode, *nutrient_values.values(), entry_id],
+            [name, normalize_string(name), brand, barcode, density_g_ml, *nutrient_values.values(), entry_id],
         ).rowcount > 0
 
 
@@ -677,12 +681,12 @@ def get_library_entry_by_barcode(barcode: str) -> Optional[dict]:
         return dict(row) if row else None
 
 
-def save_ingredient_to_library(name: str, brand: str, barcode: str, per_100g: dict) -> int:
+def save_ingredient_to_library(name: str, brand: str, barcode: str, per_100g: dict, density_g_ml: float | None = None) -> int:
     key = normalize_string(name)
     nutrient_values = {f"{field}_100g": per_100g.get(field) for field in NUTRIENT_FIELDS}
     with get_connection() as conn:
         existing = conn.execute(
-            "SELECT id, used_count FROM ingredient_library WHERE search_key = ?",
+            "SELECT id, used_count, density_g_ml FROM ingredient_library WHERE search_key = ?",
             (key,),
         ).fetchone()
         if existing:
@@ -690,20 +694,110 @@ def save_ingredient_to_library(name: str, brand: str, barcode: str, per_100g: di
             conn.execute(
                 f"""
                 UPDATE ingredient_library
-                SET {set_clause}, brand = ?, barcode = ?, used_count = ?, updated_at = CURRENT_TIMESTAMP
+                SET {set_clause}, brand = ?, barcode = ?, density_g_ml = ?, used_count = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
                 """,
-                [*nutrient_values.values(), brand, barcode, existing["used_count"] + 1, existing["id"]],
+                [
+                    *nutrient_values.values(),
+                    brand,
+                    barcode,
+                    density_g_ml if density_g_ml is not None else existing["density_g_ml"],
+                    existing["used_count"] + 1,
+                    existing["id"],
+                ],
             )
             return existing["id"]
 
-        columns = ["name", "search_key", "brand", "barcode", *nutrient_values.keys()]
-        values = [name, key, brand, barcode, *nutrient_values.values()]
+        columns = ["name", "search_key", "brand", "barcode", "density_g_ml", *nutrient_values.keys()]
+        values = [name, key, brand, barcode, density_g_ml, *nutrient_values.values()]
         placeholders = ", ".join(["?"] * len(columns))
         return conn.execute(
             f"INSERT INTO ingredient_library ({', '.join(columns)}) VALUES ({placeholders})",
             values,
         ).lastrowid
+
+
+def get_library_density(library_id: int) -> float | None:
+    with get_connection() as conn:
+        row = conn.execute("SELECT density_g_ml FROM ingredient_library WHERE id = ?", (library_id,)).fetchone()
+        return float(row["density_g_ml"]) if row and row["density_g_ml"] is not None else None
+
+
+def get_library_context(library_id: int | None = None, name: str = "") -> dict:
+    with get_connection() as conn:
+        row = None
+        if library_id:
+            row = conn.execute(
+                "SELECT id, density_g_ml FROM ingredient_library WHERE id = ?",
+                (library_id,),
+            ).fetchone()
+        elif name:
+            row = conn.execute(
+                "SELECT id, density_g_ml FROM ingredient_library WHERE search_key = ?",
+                (normalize_string(name),),
+            ).fetchone()
+
+        resolved_id = row["id"] if row else library_id
+        return {
+            "library_id": resolved_id,
+            "density_g_ml": float(row["density_g_ml"]) if row and row["density_g_ml"] is not None else None,
+            "unit_rows": list_ingredient_units(resolved_id) if resolved_id else [],
+        }
+
+
+def split_quantity_by_stock(
+    required_by_unit: dict[str, float],
+    pantry_quantity: float | None,
+    pantry_unit: str,
+    *,
+    unit_rows: list[dict] | None = None,
+    density_g_ml: float | None = None,
+) -> tuple[dict[str, float], dict[str, float]]:
+    to_buy: dict[str, float] = {}
+    in_stock: dict[str, float] = {}
+    available_quantity = float(pantry_quantity or 0)
+    available_unit = (pantry_unit or "").strip().lower()
+
+    for unit, total_needed in required_by_unit.items():
+        target_unit = (unit or "").strip().lower()
+        if available_quantity <= 0:
+            to_buy[target_unit] = round(total_needed, 4)
+            continue
+
+        if not available_unit:
+            to_buy[target_unit] = round(total_needed, 4)
+            continue
+
+        available_in_target = convert_between_units(
+            available_quantity,
+            available_unit,
+            target_unit,
+            unit_rows,
+            density_g_ml=density_g_ml,
+        )
+        if available_in_target is None:
+            to_buy[target_unit] = round(total_needed, 4)
+            continue
+
+        covered = min(total_needed, available_in_target)
+        if covered > 0:
+            in_stock[target_unit] = round(covered, 4)
+
+        remainder = total_needed - covered
+        if remainder > 0.0001:
+            to_buy[target_unit] = round(remainder, 4)
+
+        consumed_in_pantry_unit = convert_between_units(
+            covered,
+            target_unit,
+            available_unit,
+            unit_rows,
+            density_g_ml=density_g_ml,
+        )
+        if consumed_in_pantry_unit is not None:
+            available_quantity = max(0.0, available_quantity - consumed_in_pantry_unit)
+
+    return to_buy, in_stock
 
 
 def increment_library_usage(library_id: int) -> None:
@@ -1024,9 +1118,16 @@ def get_week_shopping_list(user_id: int, start_date: str) -> dict:
                     key = normalize_string(name)
                     quantity = float(ingredient["quantity"] or 0)
                     unit = (ingredient["unit"] or "").strip().lower()
+                    library_context = get_library_context(ingredient.get("library_id"), name)
                     item = items.setdefault(
                         key,
-                        {"name": name, "library_id": ingredient.get("library_id"), "total_by_unit": {}, "entries": []},
+                        {
+                            "name": name,
+                            "library_id": library_context.get("library_id"),
+                            "density_g_ml": library_context.get("density_g_ml"),
+                            "total_by_unit": {},
+                            "entries": [],
+                        },
                     )
                     item["total_by_unit"][unit] = item["total_by_unit"].get(unit, 0.0) + quantity
                     item["entries"].append({"recipe": meal["recipe_name"], "qty": quantity, "unit": unit})
@@ -1081,7 +1182,7 @@ def get_cookable_recipes(user_id: int) -> list[dict]:
     pantry_stock = {}
     for item in list_pantry(user_id):
         key = normalize_string(item["name"])
-        pantry_stock[key] = pantry_stock.get(key, 0) + float(item["quantity"] or 0)
+        pantry_stock[key] = dict(item)
 
     results = []
     for recipe_summary in list_recipes():
@@ -1090,11 +1191,30 @@ def get_cookable_recipes(user_id: int) -> list[dict]:
             continue
 
         missing = []
+        available_count = 0
         for ingredient in recipe.ingredients:
             key = normalize_string(ingredient.name)
-            required_qty = float(ingredient.quantity or 0)
-            if key not in pantry_stock or pantry_stock[key] < required_qty:
+            pantry_item = pantry_stock.get(key)
+            if not pantry_item:
                 missing.append(ingredient.name)
+                continue
+
+            library_context = get_library_context(ingredient.library_id, ingredient.name)
+            required_by_unit = {(ingredient.unit or "").strip().lower(): float(ingredient.quantity or 0)}
+            to_buy, _ = split_quantity_by_stock(
+                required_by_unit,
+                pantry_item.get("quantity"),
+                pantry_item.get("unit", ""),
+                unit_rows=library_context.get("unit_rows"),
+                density_g_ml=library_context.get("density_g_ml"),
+            )
+            if to_buy:
+                missing.append(ingredient.name)
+            else:
+                available_count += 1
+
+        total_ingredients = len(recipe.ingredients)
+        pantry_ratio = (available_count / total_ingredients) if total_ingredients else 0.0
 
         results.append(
             {
@@ -1103,6 +1223,9 @@ def get_cookable_recipes(user_id: int) -> list[dict]:
                 "total_kcal": sum(ingredient.kcal or 0 for ingredient in recipe.ingredients if ingredient.has_nutrition),
                 "cookable": not missing,
                 "missing": missing,
+                "available_count": available_count,
+                "total_ingredients": total_ingredients,
+                "pantry_ratio": round(pantry_ratio, 2),
             }
         )
 

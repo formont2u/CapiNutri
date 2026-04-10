@@ -21,6 +21,7 @@ def _recipe_form_context(recipe=None):
     if recipe:
         for ingredient in recipe.ingredients:
             ingredient.unit_definitions = crud.list_ingredient_units(ingredient.library_id) if ingredient.library_id else []
+            ingredient.density_g_ml = crud.get_library_density(ingredient.library_id) if ingredient.library_id else None
     return {
         "recipe": recipe,
         "all_tags": crud.list_tags(),
@@ -72,12 +73,14 @@ def view_recipe(recipe_id):
         best_price = prices[0]
         ingredient.cheapest_shop = best_price["shop_name"]
         unit_rows = crud.list_ingredient_units(ingredient.library_id) if ingredient.library_id else []
+        density_g_ml = crud.get_library_density(ingredient.library_id) if ingredient.library_id else None
         ingredient.estimated_cost = calculate_cost(
             ingredient.quantity,
             ingredient.unit,
             best_price["price"],
             best_price["ref_unit"],
             unit_rows,
+            density_g_ml=density_g_ml,
         )
         base_cost += ingredient.estimated_cost
 

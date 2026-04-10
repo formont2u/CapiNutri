@@ -195,11 +195,11 @@ def _lib_row_to_product(row_dict: dict) -> dict:
     return {
         "source": "library", "id": row_dict.get("id"), "barcode": row_dict.get("barcode") or "",
         "name": name, "label": f"{name} — {brand}" if brand and brand.lower() not in name.lower() else name,
-        "brand": brand, "per_100g": per_100g, "kcal_100g": per_100g.get("kcal"),
+        "brand": brand, "per_100g": per_100g, "kcal_100g": per_100g.get("kcal"), "density_g_ml": row_dict.get("density_g_ml"),
     }
 
-def library_save(name: str, brand: str, barcode: str, per_100g: dict) -> int:
-    return crud.save_ingredient_to_library(name, brand, barcode, per_100g)
+def library_save(name: str, brand: str, barcode: str, per_100g: dict, density_g_ml: float | None = None) -> int:
+    return crud.save_ingredient_to_library(name, brand, barcode, per_100g, density_g_ml=density_g_ml)
 
 def library_increment(library_id: int) -> None:
     crud.increment_library_usage(library_id)

@@ -31,6 +31,16 @@ def unit_key(unit: str) -> str:
     return normalize_string(unit)
 
 
+def _coerce_density(density_g_ml: float | None) -> float | None:
+    if density_g_ml is None:
+        return None
+    try:
+        density = float(density_g_ml)
+    except (TypeError, ValueError):
+        return None
+    return density if density > 0 else None
+
+
 def build_conversion_map(unit_rows: list[dict] | None) -> dict:
     conversion_map = {}
     for row in unit_rows or []:
@@ -55,11 +65,27 @@ def convert_to_base_units(quantity: float, unit: str, unit_rows: list[dict] | No
     return conversion["kind"], quantity * conversion["amount"]
 
 
-def convert_between_units(quantity: float, from_unit: str, to_unit: str, unit_rows: list[dict] | None = None) -> float | None:
+def convert_between_units(
+    quantity: float,
+    from_unit: str,
+    to_unit: str,
+    unit_rows: list[dict] | None = None,
+    density_g_ml: float | None = None,
+) -> float | None:
     from_kind, from_amount = convert_to_base_units(quantity, from_unit, unit_rows)
     to_kind, to_amount = convert_to_base_units(1.0, to_unit, unit_rows)
-    if not from_kind or not to_kind or from_kind != to_kind or not to_amount:
+    if not from_kind or not to_kind or not to_amount:
         return None
+    if from_kind != to_kind:
+        density = _coerce_density(density_g_ml)
+        if density is None:
+            return None
+        if from_kind == "mass" and to_kind == "volume":
+            from_amount = from_amount / density
+        elif from_kind == "volume" and to_kind == "mass":
+            from_amount = from_amount * density
+        else:
+            return None
     return from_amount / to_amount
 
 
