@@ -11,7 +11,6 @@ from flask_login import LoginManager, current_user
 # Imports de la base et DB
 import db, crud, pricing_db
 from constants import MEAL_TYPES, NUTRIENT_LABELS, RDI, MACRO_FIELDS, CARB_FIELDS, FAT_FIELDS, MICRO_FIELDS, VITAMIN_FIELDS, USDA_FIELDS
-from utils import _f
 
 # Imports des Blueprints
 from routes.auth import auth_bp
@@ -22,6 +21,7 @@ from routes.library import library_bp
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-super-secret-key-pour-localhost")
+PUBLIC_ENDPOINTS = {"auth.login", "auth.register", "static"}
 
 # ── Configuration de la Sécurité (Flask-Login) ──────────────────────────────
 login_manager = LoginManager()
@@ -37,6 +37,8 @@ def load_user(user_id):
 # ── Initialisation DB & Blueprints ──────────────────────────────────────────
 db.init_db()
 pricing_db.init_db()
+crud.ensure_default_tags()
+crud.migrate_recipe_categories_to_tags()
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(recipes_bp)
@@ -47,9 +49,11 @@ app.register_blueprint(library_bp)
 # ── VERROUILLAGE GLOBAL DE L'APPLICATION ────────────────────────────────────
 @app.before_request
 def require_login():
-    allowed_routes = ['auth.login', 'auth.register', 'static']
-    if request.endpoint not in allowed_routes and not current_user.is_authenticated:
+    if request.endpoint in PUBLIC_ENDPOINTS or current_user.is_authenticated:
+        return None
+    if request.endpoint:
         return redirect(url_for('auth.login'))
+    return None
 
 # ── Template globals ──────────────────────────────────────────────────────────
 app.jinja_env.globals.update(

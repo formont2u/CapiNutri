@@ -65,6 +65,7 @@ def init_db() -> None:
                 name      TEXT NOT NULL,
                 quantity  REAL NOT NULL,
                 unit      TEXT NOT NULL DEFAULT '',
+                library_id INTEGER REFERENCES ingredient_library(id) ON DELETE SET NULL,
 {nutr_ing}
                 _placeholder INTEGER
             );
@@ -142,6 +143,17 @@ def init_db() -> None:
             );
             CREATE INDEX IF NOT EXISTS idx_lib_search ON ingredient_library(search_key);
 
+            CREATE TABLE IF NOT EXISTS ingredient_units (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                library_id INTEGER NOT NULL REFERENCES ingredient_library(id) ON DELETE CASCADE,
+                unit_name TEXT NOT NULL,
+                unit_key TEXT NOT NULL,
+                grams_equivalent REAL,
+                ml_equivalent REAL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(library_id, unit_key)
+            );
+
             CREATE TABLE IF NOT EXISTS meal_plan (
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id    INTEGER REFERENCES users(id),
@@ -180,6 +192,10 @@ def _run_migrations() -> None:
         ing_cols = {row[1] for row in conn.execute("PRAGMA table_info(ingredients)")}
         log_cols = {row[1] for row in conn.execute("PRAGMA table_info(food_log)")}
         lib_cols = {row[1] for row in conn.execute("PRAGMA table_info(ingredient_library)")}
+        unit_cols = {row[1] for row in conn.execute("PRAGMA table_info(ingredient_units)")}
+
+        if "library_id" not in ing_cols:
+            conn.execute("ALTER TABLE ingredients ADD COLUMN library_id INTEGER REFERENCES ingredient_library(id) ON DELETE SET NULL")
 
         for field in NUTRIENT_FIELDS:
             if field not in ing_cols:
@@ -197,3 +213,8 @@ def _run_migrations() -> None:
             conn.execute("ALTER TABLE exercise_log ADD COLUMN rpe INTEGER DEFAULT 5")
         if "exercise_type" not in ex_cols:
             conn.execute("ALTER TABLE exercise_log ADD COLUMN exercise_type TEXT DEFAULT 'cardio'")
+
+        for col in ["unit_name", "unit_key", "grams_equivalent", "ml_equivalent"]:
+            if unit_cols and col not in unit_cols:
+                column_type = "TEXT" if "unit" in col and "equivalent" not in col else "REAL"
+                conn.execute(f"ALTER TABLE ingredient_units ADD COLUMN {col} {column_type}")

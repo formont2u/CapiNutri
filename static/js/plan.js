@@ -12,6 +12,18 @@ function notify(msg, type='info') {
     });
 }
 
+function formatSuggestionReason(recipe) {
+    const parts = [];
+    if (recipe.reason) parts.push(recipe.reason);
+    if (typeof recipe.pantry_ratio === 'number' && recipe.pantry_ratio > 0) {
+        parts.push(`stock ${(recipe.pantry_ratio * 100).toFixed(0)}%`);
+    }
+    if (recipe.tags?.length) {
+        parts.push(recipe.tags.slice(0, 2).join(', '));
+    }
+    return parts.join(' · ');
+}
+
 // --- Suggestion ---
 document.querySelectorAll('.btn-suggest').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -29,8 +41,10 @@ document.querySelectorAll('.btn-suggest').forEach(btn => {
                 return;
             }
             const recipe = await r.json();
+            const reason = formatSuggestionReason(recipe);
+            notify(reason ? `${recipe.name} · ${reason}` : `${recipe.name} sélectionnée`, 'success');
             await setPlan(slot, recipe.id);
-            location.reload();
+            setTimeout(() => location.reload(), 450);
         } catch(e) {
             notify('Erreur réseau', 'error');
             btn.innerHTML = originalContent;

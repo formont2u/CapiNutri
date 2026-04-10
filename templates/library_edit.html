@@ -103,6 +103,9 @@
                                 <option value="pièce">Pièce</option>
                                 <option value="g">g</option>
                                 <option value="paquet">Paquet</option>
+                                {% for unit in ingredient_units %}
+                                <option value="{{ unit.unit_name }}">{{ unit.unit_name }}</option>
+                                {% endfor %}
                             </select>
                         </div>
                         <div class="col-12 mt-2">
@@ -113,6 +116,65 @@
                     </div>
                 </form>
 
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm rounded-4 bg-white mt-4">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold text-secondary mb-0"><i class="bi bi-rulers text-info"></i> Unités intelligentes</h5>
+                    <span class="badge bg-light text-dark border rounded-pill">{{ ingredient_units|length }} unité{{ 's' if ingredient_units|length != 1 }}</span>
+                </div>
+
+                {% if ingredient_units %}
+                <ul class="list-group list-group-flush mb-3">
+                    {% for unit in ingredient_units %}
+                    <li class="list-group-item px-0 py-2 border-bottom d-flex justify-content-between align-items-center bg-transparent">
+                        <div>
+                            <div class="fw-bold text-dark">{{ unit.unit_name }}</div>
+                            <div class="small text-muted">
+                                {% if unit.grams_equivalent is not none %}
+                                    1 {{ unit.unit_name }} = {{ unit.grams_equivalent|round(2) }} g
+                                {% elif unit.ml_equivalent is not none %}
+                                    1 {{ unit.unit_name }} = {{ unit.ml_equivalent|round(2) }} ml
+                                {% endif %}
+                            </div>
+                        </div>
+                        <form method="post" action="{{ url_for('library.library_edit', entry_id=entry.id) }}">
+                            <input type="hidden" name="action" value="delete_unit">
+                            <input type="hidden" name="unit_id" value="{{ unit.id }}">
+                            <button type="submit" class="btn btn-sm btn-light text-danger rounded-circle border"><i class="bi bi-trash"></i></button>
+                        </form>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="text-muted small mb-3 fst-italic">Aucune conversion personnalisée. Ajoutez par exemple <strong>1 oeuf = 55 g</strong> ou <strong>1 pot = 125 g</strong>.</div>
+                {% endif %}
+
+                <form method="post" action="{{ url_for('library.library_edit', entry_id=entry.id) }}" class="p-3 bg-light rounded-4 border border-white shadow-sm mt-3">
+                    <input type="hidden" name="action" value="add_unit">
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-muted text-uppercase">Nom de l'unité</label>
+                            <input class="form-control form-control-sm border-0 shadow-sm" name="unit_name" placeholder="ex. oeuf, pot, tranche, tasse" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-muted text-uppercase">Équiv. en g</label>
+                            <input type="number" step="any" min="0" class="form-control form-control-sm border-0 shadow-sm" name="grams_equivalent" placeholder="55">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-muted text-uppercase">Équiv. en ml</label>
+                            <input type="number" step="any" min="0" class="form-control form-control-sm border-0 shadow-sm" name="ml_equivalent" placeholder="250">
+                        </div>
+                        <div class="col-12 mt-2">
+                            <button type="submit" class="btn btn-dark btn-sm w-100 rounded-pill fw-bold" style="background-color: var(--accent); border:none;">
+                                <i class="bi bi-plus-lg"></i> Ajouter cette conversion
+                            </button>
+                        </div>
+                    </div>
+                    <div class="small text-muted mt-2">Remplissez soit les grammes, soit les millilitres.</div>
+                </form>
             </div>
         </div>
         {% else %}

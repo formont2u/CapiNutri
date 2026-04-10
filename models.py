@@ -6,7 +6,7 @@ La logique métier (algorithmes) a été séparée pour garder ce fichier propre
 from dataclasses import dataclass, field
 from typing import Optional
 from flask_login import UserMixin
-from db import NUTRIENT_FIELDS
+from constants import NUTRIENT_FIELDS
 
 # ── 1. Le Mixin Magique 
 
@@ -71,6 +71,7 @@ class Ingredient(NutritionalMixin):
     name: str
     quantity: float
     unit: str = ""
+    library_id: Optional[int] = None
     id: Optional[int] = None
     recipe_id: Optional[int] = None
 
@@ -145,14 +146,6 @@ class FoodLogEntry(NutritionalMixin):
     def nutrient_dict(self) -> dict:
         return {f: getattr(self, f) or 0.0 for f in NUTRIENT_FIELDS}
 
-
-@dataclass
-class ExerciseEntry:
-    log_date: str
-    name: str
-    kcal_burned: float
-    duration_min: Optional[int] = None
-    id: Optional[int] = None
 
 @dataclass
 class ExerciseEntry:

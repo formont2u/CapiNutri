@@ -27,18 +27,41 @@
   <div class="card border-0 shadow-sm rounded-4 p-4 mb-4 bg-white">
     <h5 class="fw-bold text-secondary mb-4"><i class="bi bi-info-circle text-accent"></i> Informations de base</h5>
     <div class="row g-4 mb-4">
-      <div class="col-md-6">
+      <div class="col-md-8">
         <label class="form-label small fw-bold text-muted text-uppercase">Nom de la recette *</label>
         <input class="form-control form-control-lg bg-light border-0 shadow-sm fw-bold" name="name" required placeholder="ex. Omelette classique" value="{{ recipe.name if recipe else '' }}">
       </div>
-      <div class="col-md-3">
-        <label class="form-label small fw-bold text-muted text-uppercase">Catégorie</label>
-        <input class="form-control form-control-lg bg-light border-0 shadow-sm" name="category" list="cat-list" placeholder="Petit-déjeuner..." value="{{ recipe.category if recipe and recipe.category else '' }}">
-        <datalist id="cat-list">{% for cat in categories %}<option value="{{ cat }}">{% endfor %}</datalist>
-      </div>
-      <div class="col-md-3">
+      <div class="col-md-4">
         <label class="form-label small fw-bold text-muted text-uppercase">Portions</label>
         <input class="form-control form-control-lg bg-light border-0 shadow-sm text-center fw-bold text-accent" name="servings" type="number" min="0.5" step="0.5" value="{{ recipe.servings if recipe else 1 }}">
+      </div>
+    </div>
+
+    <div class="mb-4">
+      <div class="d-flex justify-content-between align-items-center mb-2 gap-3">
+        <label class="form-label small fw-bold text-muted text-uppercase mb-0">Tags intelligents</label>
+        <span class="small text-muted">Utilises pour filtrer les recettes et guider les suggestions du planner.</span>
+      </div>
+
+      <div class="bg-light rounded-4 p-3 border" id="tagPicker"
+           data-all-tags='{{ all_tags | tojson | safe }}'
+           data-selected-tags='{{ (recipe.tags if recipe else []) | tojson | safe }}'>
+        <div class="d-flex flex-wrap gap-2 mb-3" id="selectedTags"></div>
+
+        <div class="position-relative">
+          <div class="input-group shadow-sm rounded-pill overflow-hidden">
+            <span class="input-group-text border-0 bg-white text-muted"><i class="bi bi-stars"></i></span>
+            <input type="text" class="form-control border-0 shadow-none" id="tagSearchInput" placeholder="Ajoute breakfast, snack, vegetarian, quick...">
+          </div>
+          <div class="list-group position-absolute w-100 mt-2 shadow rounded-4 overflow-hidden" id="tagSuggestions" style="display:none; z-index: 20;"></div>
+        </div>
+
+        <div class="mt-3">
+          <div class="small fw-bold text-muted text-uppercase mb-2">Raccourcis</div>
+          <div class="d-flex flex-wrap gap-2" id="tagQuickPicks"></div>
+        </div>
+
+        <div id="tagHiddenInputs"></div>
       </div>
     </div>
 
@@ -53,7 +76,8 @@
     <div class="d-flex flex-wrap justify-content-between align-items-end mb-4 gap-3">
       <div>
         <h5 class="fw-bold text-secondary mb-1"><i class="bi bi-basket text-success"></i> Ingrédients</h5>
-        <small class="text-muted"><i class="bi bi-search"></i> Tapez pour chercher un aliment en direct</small>
+        <small class="text-muted d-block"><i class="bi bi-search"></i> Tapez pour chercher un aliment en direct</small>
+        <small class="text-muted"><i class="bi bi-rulers"></i> Le bouton <strong>+</strong> près de l'unité sert à créer une conversion maison comme <em>1 tomate = 90 g</em>.</small>
       </div>
       <div class="d-flex align-items-center gap-3">
         <div class="badge bg-light text-dark border shadow-sm px-3 py-2 text-start d-flex align-items-center gap-2 rounded-3">
@@ -87,11 +111,12 @@
     <div id="ingList">
       {% set ings = recipe.ingredients if recipe and recipe.ingredients else [none] %}
       {% for ing in ings %}
-        <div class="ing-block bg-white border rounded-4 p-3 mb-3 shadow-sm">
+        <div class="ing-block bg-white border rounded-4 p-3 mb-3 shadow-sm" data-library-id="{{ ing.library_id if ing and ing.library_id else '' }}" data-unit-definitions='{{ (ing.unit_definitions if ing and ing.unit_definitions else []) | tojson | safe }}'>
           
           <div class="row g-2 align-items-center mb-2 position-relative">
             <div class="col-12 col-md-4">
               <input class="form-control bg-light border-0 shadow-sm off-name-input fw-bold" name="ing_name" placeholder="ex. Farine, Eple..." autocomplete="off" value="{{ ing.name if ing else '' }}">
+              <input type="hidden" name="ing_library_id" value="{{ ing.library_id if ing and ing.library_id else '' }}">
               <div class="off-dropdown list-group position-absolute w-100 shadow rounded-3 mt-1" style="display:none; z-index: 1000; max-height: 250px; overflow-y: auto;"></div>
             </div>
             
@@ -104,14 +129,21 @@
 
             <div class="col-6 col-md-2 d-flex gap-1">
               <input class="form-control form-control-sm bg-light border-0 shadow-sm ing-qty-input text-end fw-bold text-accent" name="ing_qty" placeholder="100" type="number" min="0" step="any" value="{{ ing.quantity if ing else '' }}">
-              <select class="form-select form-select-sm bg-light border-0 shadow-sm ing-unit-input" name="ing_unit">
-                <option value="g" {{ 'selected' if ing and ing.unit == 'g' else '' }}>g</option>
-                <option value="kg" {{ 'selected' if ing and ing.unit == 'kg' else '' }}>kg</option>
-                <option value="ml" {{ 'selected' if ing and ing.unit == 'ml' else '' }}>ml</option>
-                <option value="cas" {{ 'selected' if ing and ing.unit == 'cas' else '' }}>c.à.s</option>
-                <option value="pièce" {{ 'selected' if ing and ing.unit == 'pièce' else '' }}>pièce</option>
-                <option value="pincée" {{ 'selected' if ing and ing.unit == 'pincée' else '' }}>pincée</option>
+              <select class="form-select form-select-sm bg-light border-0 shadow-sm ing-unit-input" name="ing_unit" data-selected-unit="{{ ing.unit if ing else 'g' }}">
+                {% set rendered_units = namespace(keys=[]) %}
+                {% for unit in standard_units %}
+                  {% set rendered_units.keys = rendered_units.keys + [unit.value] %}
+                  <option value="{{ unit.value }}" {{ 'selected' if ing and ing.unit == unit.value else ('selected' if not ing and unit.value == 'g' else '') }}>{{ unit.label }}</option>
+                {% endfor %}
+                {% for unit in ing.unit_definitions if ing and ing.unit_definitions %}
+                  {% if unit.unit_name not in rendered_units.keys %}
+                  <option value="{{ unit.unit_name }}" {{ 'selected' if ing and ing.unit == unit.unit_name else '' }}>{{ unit.unit_name }}</option>
+                  {% endif %}
+                {% endfor %}
               </select>
+              <button type="button" class="btn btn-sm btn-info-subtle border border-info-subtle shadow-sm btn-add-unit text-info-emphasis" title="Ajouter une unité intelligente">
+                <i class="bi bi-plus-circle"></i>
+              </button>
             </div>
 
             <div class="col-12 col-md-4 d-flex justify-content-end gap-2">
@@ -219,12 +251,60 @@
   </div>
 </div>
 
+<div class="modal fade" id="quickUnitModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-4 border-0 shadow-lg">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold text-dark"><i class="bi bi-rulers text-info"></i> Ajouter une unité intelligente</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-4">
+        <form id="quickUnitForm">
+          <div class="mb-3">
+            <label class="form-label small fw-bold text-muted text-uppercase">Ingrédient</label>
+            <input type="text" class="form-control bg-light border-0 fw-bold shadow-none" id="modalUnitIngredient" readonly>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-bold text-muted text-uppercase">Nom de l'unité</label>
+            <input type="text" class="form-control bg-light border-0 shadow-sm" id="modalUnitName" placeholder="ex. tomate, pavé, tranche" required>
+          </div>
+
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label small fw-bold text-muted text-uppercase">Équiv. en g</label>
+              <input type="number" step="any" min="0" class="form-control bg-light border-0 shadow-sm" id="modalUnitGrams" placeholder="90">
+            </div>
+            <div class="col-6">
+              <label class="form-label small fw-bold text-muted text-uppercase">Équiv. en ml</label>
+              <input type="number" step="any" min="0" class="form-control bg-light border-0 shadow-sm" id="modalUnitMl" placeholder="250">
+            </div>
+          </div>
+
+          <div class="small text-muted mb-2">Remplis soit les grammes, soit les millilitres. La conversion sera sauvegardée dans la bibliothèque.</div>
+          <div class="d-flex flex-wrap gap-2 mb-4">
+            <button type="button" class="btn btn-sm btn-light border rounded-pill quick-unit-fill" data-unit-name="tomate" data-grams="90">1 tomate = 90 g</button>
+            <button type="button" class="btn btn-sm btn-light border rounded-pill quick-unit-fill" data-unit-name="oeuf" data-grams="55">1 oeuf = 55 g</button>
+            <button type="button" class="btn btn-sm btn-light border rounded-pill quick-unit-fill" data-unit-name="pavé" data-grams="140">1 pavé = 140 g</button>
+          </div>
+
+          <button type="submit" class="btn btn-info w-100 rounded-pill fw-bold py-2 shadow-sm text-white">
+            <i class="bi bi-plus-lg"></i> Ajouter cette unité
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
 // --- DONNÉES INJECTÉES PAR LE BACKEND ---
 const LABELS = {{ NUTRIENT_LABELS | tojson }};
+const STANDARD_UNITS = {{ standard_units | tojson }};
+const TAG_META = {{ all_tags | tojson }};
 const GROUPS = {
   macros:    ['kcal','protein_g','carbs_g','fat_g'],
   glucides:  ['sugars_g','fiber_g'],
@@ -234,35 +314,266 @@ const GROUPS = {
   usda:      ['cholesterol_mg','trans_fat_g','omega3_g','omega6_g','phosphorus_mg','selenium_mcg','copper_mg','manganese_mg'],
 };
 const TAB_LABELS = {macros:'Macros',glucides:'Glucides',lipides:'Lipides',micro:'Micro',vitamines:'Vitamines',usda:'USDA +'};
+const TAG_QUICK_ORDER = ['breakfast', 'lunch', 'dinner', 'snack', 'vegetarian', 'vegan', 'high-protein', 'cheap', 'quick', 'batch-cook', 'post-workout'];
 
-const GRAM_UNITS = new Set(['g','gr','gram','grams','gramme','grammes']);
-const CONVERSIONS = {
-  'kg': 1000, 'kilo': 1000,
-  'ml': 1, 'cl': 10, 'dl': 100, 'l': 1000, 'litre': 1000,
-  'cac': 5, 'càc': 5, 'tsp': 5, 'cuillère à café': 5,
-  'cas': 15, 'càs': 15, 'tbsp': 15, 'cuillère à soupe': 15,
-  'pincée': 0.5, 'pinch': 0.5,
-  'tasse': 250, 'cup': 250, 'verre': 200,
-  'oignon': 80, 'gousse': 5,
-  'pièce': 100, 'unité': 100
+const STANDARD_CONVERSIONS = {
+  'g': { kind: 'mass', amount: 1 },
+  'gr': { kind: 'mass', amount: 1 },
+  'gram': { kind: 'mass', amount: 1 },
+  'kg': { kind: 'mass', amount: 1000 },
+  'kilo': { kind: 'mass', amount: 1000 },
+  'ml': { kind: 'volume', amount: 1 },
+  'cl': { kind: 'volume', amount: 10 },
+  'dl': { kind: 'volume', amount: 100 },
+  'l': { kind: 'volume', amount: 1000 },
+  'litre': { kind: 'volume', amount: 1000 },
 };
 
 // --- UTILITAIRES ---
-function toGrams(qty, unit) {
-  const u = (unit||'').toLowerCase().trim();
-  if (u === '' || GRAM_UNITS.has(u)) return qty;
-  if (CONVERSIONS[u]) return qty * CONVERSIONS[u];
-  const words = u.replace(/[.,']/g, ' ').split(/\s+/);
-  for (const w of words) if (CONVERSIONS[w]) return qty * CONVERSIONS[w];
-  return null;
+function normalizeUnitKey(unit) {
+  return (unit || '').toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
 }
 
-function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function buildUnitConversionMap(block) {
+  const map = { ...STANDARD_CONVERSIONS };
+  let unitDefinitions = [];
+  try {
+    unitDefinitions = JSON.parse(block.dataset.unitDefinitions || '[]');
+  } catch (_) {}
+
+  unitDefinitions.forEach(unit => {
+    const key = unit.unit_key || normalizeUnitKey(unit.unit_name);
+    if (unit.grams_equivalent !== null && unit.grams_equivalent !== undefined) {
+      map[key] = { kind: 'mass', amount: parseFloat(unit.grams_equivalent) };
+    } else if (unit.ml_equivalent !== null && unit.ml_equivalent !== undefined) {
+      map[key] = { kind: 'volume', amount: parseFloat(unit.ml_equivalent) };
+    }
+  });
+  return map;
+}
+
+function toBaseUnits(block, qty, unit) {
+  const conversion = buildUnitConversionMap(block)[normalizeUnitKey(unit)];
+  if (!conversion) return null;
+  return { kind: conversion.kind, amount: qty * conversion.amount };
+}
+
+function toNutritionScale(block, qty, unit) {
+  const base = toBaseUnits(block, qty, unit);
+  return base ? base.amount / 100 : null;
+}
+
+function renderUnitOptions(unitDefinitions, selectedUnit = 'g') {
+  const options = [];
+  const seen = new Set();
+  [...STANDARD_UNITS, ...unitDefinitions.map(unit => ({ value: unit.unit_name, label: unit.unit_name }))].forEach(option => {
+    if (seen.has(option.value)) return;
+    seen.add(option.value);
+    options.push(`<option value="${option.value}" ${option.value === selectedUnit ? 'selected' : ''}>${option.label}</option>`);
+  });
+  return options.join('');
+}
+
+function applyUnitDefinitions(block, unitDefinitions, selectedUnit) {
+  block.dataset.unitDefinitions = JSON.stringify(unitDefinitions || []);
+  const select = block.querySelector('.ing-unit-input');
+  if (!select) return;
+  const currentUnit = selectedUnit || select.value || select.dataset.selectedUnit || 'g';
+  select.innerHTML = renderUnitOptions(unitDefinitions || [], currentUnit);
+  select.dataset.selectedUnit = currentUnit;
+}
+
+async function fetchLibraryUnits(libraryId) {
+  if (!libraryId) return [];
+  const response = await fetch(`/api/library/${libraryId}/units`);
+  if (!response.ok) return [];
+  return await response.json();
+}
+
+function assignIngredientMetadata(block, libraryId, unitDefinitions, selectedUnit = null) {
+  block.dataset.libraryId = libraryId || '';
+  const hiddenInput = block.querySelector('input[name="ing_library_id"]');
+  if (hiddenInput) hiddenInput.value = libraryId || '';
+  applyUnitDefinitions(block, unitDefinitions || [], selectedUnit);
+}
+
+function esc(s) {
+  return (s || '')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
+function normalizeTagKey(tag) {
+  return (tag || '').trim().toLowerCase();
+}
 
 function showToast(msg, type='info') {
     const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
     const icon = type === 'warn' ? 'warning' : type === 'error' ? 'error' : 'success';
     Toast.fire({ icon: icon, title: msg });
+}
+
+// --- TAG PICKER ---
+function getTagMeta(name) {
+  return TAG_META.find(tag => normalizeTagKey(tag.name) === normalizeTagKey(name)) || null;
+}
+
+function buildTagChip(name) {
+  const meta = getTagMeta(name);
+  const color = meta?.color || '#6c757d';
+  const icon = meta?.icon || 'bi-tag-fill';
+  return `
+    <span class="badge rounded-pill px-3 py-2 fw-bold d-inline-flex align-items-center gap-2"
+          style="background-color:${color}20; color:${color}; border:1px solid ${color};">
+      <i class="bi ${icon}"></i> ${esc(name)}
+      <button type="button" class="btn btn-sm p-0 border-0 bg-transparent text-reset tag-remove-btn" data-tag="${esc(name)}" aria-label="Retirer ${esc(name)}">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </span>`;
+}
+
+function initTagPicker() {
+  const root = document.getElementById('tagPicker');
+  if (!root) return;
+
+  const searchInput = document.getElementById('tagSearchInput');
+  const suggestions = document.getElementById('tagSuggestions');
+  const selectedWrap = document.getElementById('selectedTags');
+  const quickPicksWrap = document.getElementById('tagQuickPicks');
+  const hiddenInputsWrap = document.getElementById('tagHiddenInputs');
+
+  let selectedTags = [];
+  try {
+    selectedTags = JSON.parse(root.dataset.selectedTags || '[]');
+  } catch (_) {}
+
+  const allTagNames = Array.from(new Set(TAG_META.map(tag => tag.name)));
+
+  function syncHiddenInputs() {
+    hiddenInputsWrap.innerHTML = selectedTags.map(tag => `<input type="hidden" name="tags" value="${esc(tag)}">`).join('');
+  }
+
+  function renderSelectedTags() {
+    if (!selectedTags.length) {
+      selectedWrap.innerHTML = '<span class="text-muted small">Aucun tag pour l\'instant. Ajoute juste ce qui aide vraiment le planner.</span>';
+      syncHiddenInputs();
+      return;
+    }
+
+    selectedWrap.innerHTML = selectedTags.map(buildTagChip).join('');
+    selectedWrap.querySelectorAll('.tag-remove-btn').forEach(btn => {
+      btn.addEventListener('click', () => removeTag(btn.dataset.tag));
+    });
+    syncHiddenInputs();
+  }
+
+  function renderQuickPicks() {
+    const ordered = TAG_QUICK_ORDER
+      .map(name => allTagNames.find(tagName => normalizeTagKey(tagName) === normalizeTagKey(name)) || name)
+      .filter((name, index, arr) => name && arr.findIndex(item => normalizeTagKey(item) === normalizeTagKey(name)) === index);
+
+    quickPicksWrap.innerHTML = ordered.map(name => {
+      const active = selectedTags.some(tag => normalizeTagKey(tag) === normalizeTagKey(name));
+      const meta = getTagMeta(name);
+      const color = meta?.color || '#6c757d';
+      return `
+        <button type="button" class="btn btn-sm rounded-pill fw-bold tag-quick-btn ${active ? 'text-white' : 'btn-light border'}"
+                data-tag="${esc(name)}"
+                style="${active ? `background-color:${color}; border-color:${color};` : ''}">
+          <i class="bi ${meta?.icon || 'bi-tag-fill'}"></i> ${esc(name)}
+        </button>`;
+    }).join('');
+
+    quickPicksWrap.querySelectorAll('.tag-quick-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tag = btn.dataset.tag;
+        if (selectedTags.some(item => normalizeTagKey(item) === normalizeTagKey(tag))) removeTag(tag);
+        else addTag(tag);
+      });
+    });
+  }
+
+  function renderSuggestions(query = '') {
+    const normalizedQuery = normalizeTagKey(query);
+    const matches = allTagNames
+      .filter(name => !selectedTags.some(tag => normalizeTagKey(tag) === normalizeTagKey(name)))
+      .filter(name => !normalizedQuery || normalizeTagKey(name).includes(normalizedQuery))
+      .slice(0, 8);
+
+    const canCreate = normalizedQuery && !allTagNames.some(name => normalizeTagKey(name) === normalizedQuery);
+
+    if (!matches.length && !canCreate) {
+      suggestions.style.display = 'none';
+      suggestions.innerHTML = '';
+      return;
+    }
+
+    suggestions.innerHTML = matches.map(name => {
+      const meta = getTagMeta(name);
+      return `
+        <button type="button" class="list-group-item list-group-item-action d-flex align-items-center gap-2 tag-suggestion-btn" data-tag="${esc(name)}">
+          <i class="bi ${meta?.icon || 'bi-tag-fill'}" style="color:${meta?.color || '#6c757d'};"></i>
+          <span class="fw-bold">${esc(name)}</span>
+        </button>`;
+    }).join('');
+
+    if (canCreate) {
+      suggestions.innerHTML += `
+        <button type="button" class="list-group-item list-group-item-action text-accent fw-bold tag-create-btn" data-tag="${esc(query.trim())}">
+          <i class="bi bi-plus-circle"></i> Creer "${esc(query.trim())}"
+        </button>`;
+    }
+
+    suggestions.style.display = 'block';
+    suggestions.querySelectorAll('.tag-suggestion-btn, .tag-create-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        addTag(btn.dataset.tag);
+        searchInput.value = '';
+        renderSuggestions('');
+      });
+    });
+  }
+
+  function addTag(tag) {
+    const cleaned = (tag || '').trim();
+    if (!cleaned) return;
+    if (selectedTags.some(item => normalizeTagKey(item) === normalizeTagKey(cleaned))) return;
+    selectedTags = [...selectedTags, cleaned];
+    renderSelectedTags();
+    renderQuickPicks();
+  }
+
+  function removeTag(tag) {
+    selectedTags = selectedTags.filter(item => normalizeTagKey(item) !== normalizeTagKey(tag));
+    renderSelectedTags();
+    renderQuickPicks();
+    renderSuggestions(searchInput.value);
+  }
+
+  searchInput.addEventListener('input', () => renderSuggestions(searchInput.value));
+  searchInput.addEventListener('focus', () => renderSuggestions(searchInput.value));
+  searchInput.addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      const visibleCreate = suggestions.querySelector('.tag-create-btn');
+      if (visibleCreate) visibleCreate.click();
+      else {
+        const firstSuggestion = suggestions.querySelector('.tag-suggestion-btn');
+        if (firstSuggestion) firstSuggestion.click();
+      }
+    }
+  });
+  document.addEventListener('click', event => {
+    if (!root.contains(event.target)) {
+      suggestions.style.display = 'none';
+    }
+  });
+
+  renderSelectedTags();
+  renderQuickPicks();
 }
 
 // --- LOGIQUE API EXTERNE ---
@@ -285,17 +596,16 @@ function fillFromBackend(block, product, qty, unit) {
   let parsedQty = parseFloat(qty);
   if (isNaN(parsedQty)) {
     const u = (unit||'').toLowerCase().trim();
-    parsedQty = (u === '' || GRAM_UNITS.has(u)) ? 100 : 1; 
+    parsedQty = (u === '' || normalizeUnitKey(u) === 'g') ? 100 : 1; 
   }
 
-  const grams = toGrams(parsedQty, unit);
-  const scale = grams !== null ? grams / 100 : parsedQty / 100;
-  const unknownUnit = grams === null && parsedQty > 0;
+  const scale = toNutritionScale(block, parsedQty, unit);
+  const unknownUnit = scale === null && parsedQty > 0;
 
   let filled = 0;
   for (const [field, val] of Object.entries(per100g)) {
     const inp = block.querySelector(`input[data-field="${field}"]`);
-    if (inp) { inp.value = parseFloat((val * scale).toFixed(4)); filled++; }
+    if (inp && scale !== null) { inp.value = parseFloat((val * scale).toFixed(4)); filled++; }
   }
   if (!filled) return false;
 
@@ -340,28 +650,40 @@ function renderDropdown(dd, products, block) {
     item.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center py-2'; 
     item.href = "#";
     item.innerHTML = `
-      <div style="min-width: 0;">
-        ${isLib ? '<span class="badge bg-info text-dark me-1" style="font-size: 0.65rem;">Biblio</span>' : ''}
-        <span class="fw-bold small text-truncate d-inline-block" style="max-width: 150px; vertical-align: bottom;">${esc(p.name)}</span>
+      <div class="flex-grow-1 pe-2" style="min-width: 0;">
+        <div class="d-flex align-items-center gap-2" style="min-width: 0;">
+          ${isLib ? '<span class="d-inline-flex align-items-center justify-content-center rounded-circle bg-info-subtle text-info-emphasis border flex-shrink-0" style="width: 1.35rem; height: 1.35rem;" title="Déjà dans la bibliothèque"><i class="bi bi-bookmark-star-fill" style="font-size: 0.72rem;"></i></span>' : ''}
+          <span class="fw-bold small d-inline-block align-bottom text-truncate" style="min-width: 0;">${esc(p.name)}</span>
+        </div>
         ${p.brand ? `<small class="text-muted d-block" style="font-size: 0.7rem;">${esc(p.brand)}</small>` : ''}
       </div>
-      ${p.kcal_100g != null ? `<span class="badge bg-light text-dark border">${Math.round(p.kcal_100g)}\u202fkcal</span>` : ''}`;
+      ${p.kcal_100g != null ? `<span class="badge bg-light text-dark border flex-shrink-0">${Math.round(p.kcal_100g)}\u202fkcal</span>` : ''}`;
     
     const pick = async e => {
       e.preventDefault();
       block.querySelector('.off-name-input').value = p.name;
+      block.querySelector('.off-name-input').defaultValue = p.name;
       dd.style.display = 'none';
+      let libraryId = p.id || null;
+      let unitDefinitions = p.units || [];
+      if (!libraryId || p.source !== 'library') {
+        try {
+          const saveResponse = await fetch('/api/library/save', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ name: p.name, brand: p.brand||'', barcode: p.barcode||'', per_100g: p.per_100g, library_id: p.source === 'library' ? p.id : null })
+          });
+          const saveResult = await saveResponse.json();
+          libraryId = saveResult.id || libraryId;
+          unitDefinitions = saveResult.units || unitDefinitions;
+        } catch(e) {}
+      } else if (!unitDefinitions.length) {
+        unitDefinitions = await fetchLibraryUnits(libraryId);
+      }
+      assignIngredientMetadata(block, libraryId, unitDefinitions);
       const qty  = block.querySelector('.ing-qty-input').value;
       const unit = block.querySelector('.ing-unit-input').value.trim();
       if (!fillFromBackend(block, p, qty, unit)) { showToast('Données insuffisantes.', 'warn'); return; }
-      
-      try {
-        await fetch('/api/library/save', {
-          method: 'POST',
-          headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({ name: p.name, brand: p.brand||'', barcode: p.barcode||'', per_100g: p.per_100g, library_id: isLib ? p.id : null })
-        });
-      } catch(e) {}
     };
     item.addEventListener('mousedown', pick);
     dd.appendChild(item);
@@ -379,6 +701,9 @@ function wireOFF(block) {
   nameIn.addEventListener('input', () => {
     const q   = nameIn.value.trim();
     const src = getSource(block);
+    if (block.dataset.libraryId && q !== nameIn.defaultValue) {
+      assignIngredientMetadata(block, null, []);
+    }
     if (q.length < 2) { close(); return; }
     if (q === lastQ && src === lastSrc) return;
     lastQ = q; lastSrc = src;
@@ -407,6 +732,8 @@ function wireOFF(block) {
 
 // --- GESTION DU BOUTON PRICING (MODALE) ---
 const quickPricingModal = new bootstrap.Modal(document.getElementById('quickPricingModal'));
+const quickUnitModal = new bootstrap.Modal(document.getElementById('quickUnitModal'));
+let activeUnitBlock = null;
 
 function wirePricingBtn(block) {
     const btn = block.querySelector('.btn-pricing');
@@ -420,10 +747,59 @@ function wirePricingBtn(block) {
         // On pré-sélectionne l'unité si elle existe
         const currentUnit = block.querySelector('.ing-unit-input').value;
         const selectUnit = document.querySelector('#quickPricingForm select[name="unit"]');
-        if([...selectUnit.options].some(o => o.value === currentUnit)) {
-            selectUnit.value = currentUnit;
-        }
+        let unitDefinitions = [];
+        try {
+            unitDefinitions = JSON.parse(block.dataset.unitDefinitions || '[]');
+        } catch (_) {}
+        selectUnit.innerHTML = renderUnitOptions(unitDefinitions, currentUnit);
         quickPricingModal.show();
+    });
+}
+
+async function ensureLibraryIngredient(block) {
+    const currentLibraryId = block.dataset.libraryId || block.querySelector('input[name="ing_library_id"]')?.value || '';
+    if (currentLibraryId) return parseInt(currentLibraryId, 10);
+
+    const ingredientName = block.querySelector('.off-name-input')?.value.trim();
+    let per100g = null;
+    try {
+        per100g = JSON.parse(block.dataset.per100g || 'null');
+    } catch (_) {}
+
+    if (!ingredientName || !per100g || !Object.keys(per100g).length) return null;
+
+    const response = await fetch('/api/library/save', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ name: ingredientName, brand: '', barcode: '', per_100g: per100g })
+    });
+    if (!response.ok) return null;
+    const result = await response.json();
+    assignIngredientMetadata(block, result.id, result.units || []);
+    return result.id;
+}
+
+function wireAddUnitBtn(block) {
+    const btn = block.querySelector('.btn-add-unit');
+    btn?.addEventListener('click', async () => {
+        const ingredientName = block.querySelector('.off-name-input')?.value.trim();
+        if (!ingredientName) {
+            showToast('Choisis d\'abord un ingrédient.', 'warn');
+            return;
+        }
+
+        const libraryId = await ensureLibraryIngredient(block);
+        if (!libraryId) {
+            showToast('Il faut d\'abord une fiche nutritionnelle sur cette ligne pour créer une unité.', 'warn');
+            return;
+        }
+
+        activeUnitBlock = block;
+        document.getElementById('modalUnitIngredient').value = ingredientName;
+        document.getElementById('modalUnitName').value = '';
+        document.getElementById('modalUnitGrams').value = '';
+        document.getElementById('modalUnitMl').value = '';
+        quickUnitModal.show();
     });
 }
 
@@ -445,6 +821,61 @@ document.getElementById('quickPricingForm').addEventListener('submit', async (e)
     } catch (err) {
         showToast('Erreur de connexion', 'error');
     }
+});
+
+document.getElementById('quickUnitForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!activeUnitBlock) return;
+
+    const unitName = document.getElementById('modalUnitName').value.trim();
+    const gramsEquivalent = document.getElementById('modalUnitGrams').value.trim();
+    const mlEquivalent = document.getElementById('modalUnitMl').value.trim();
+
+    if (!unitName || (!gramsEquivalent && !mlEquivalent)) {
+        showToast('Remplis un nom d\'unité et une équivalence.', 'warn');
+        return;
+    }
+
+    const libraryId = await ensureLibraryIngredient(activeUnitBlock);
+    if (!libraryId) {
+        showToast('Impossible de lier cet ingrédient à la bibliothèque.', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/library/${libraryId}/units`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({
+                unit_name: unitName,
+                grams_equivalent: gramsEquivalent || null,
+                ml_equivalent: mlEquivalent || null,
+            })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) {
+            showToast('Impossible d\'ajouter cette unité.', 'error');
+            return;
+        }
+
+        assignIngredientMetadata(activeUnitBlock, libraryId, result.units || [], unitName);
+        const select = activeUnitBlock.querySelector('.ing-unit-input');
+        select.value = unitName;
+        select.dispatchEvent(new Event('input'));
+        showToast(`Unité "${unitName}" ajoutée.`, 'success');
+        quickUnitModal.hide();
+        document.getElementById('quickUnitForm').reset();
+    } catch (_) {
+        showToast('Erreur de connexion', 'error');
+    }
+});
+
+document.querySelectorAll('.quick-unit-fill').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.getElementById('modalUnitName').value = btn.dataset.unitName || '';
+        document.getElementById('modalUnitGrams').value = btn.dataset.grams || '';
+        document.getElementById('modalUnitMl').value = btn.dataset.ml || '';
+    });
 });
 
 
@@ -492,6 +923,7 @@ function wireRow(block) {
   wireSourceToggle(block);
   wireOFF(block);
   wirePricingBtn(block); // <--- NOUVEAU
+  wireAddUnitBtn(block);
 
   const qtyInp = block.querySelector('.ing-qty-input');
   const unitInp = block.querySelector('.ing-unit-input');
@@ -500,8 +932,8 @@ function wireRow(block) {
     if (!block.dataset.per100g) return; 
     const per100g = JSON.parse(block.dataset.per100g);
     const qty = parseFloat(qtyInp.value) || 0;
-    const grams = toGrams(qty, unitInp.value);
-    const scale = grams !== null ? grams / 100 : qty / 100;
+    const scale = toNutritionScale(block, qty, unitInp.value);
+    if (scale === null) return;
 
     for (const [field, val] of Object.entries(per100g)) {
       const inp = block.querySelector(`input[data-field="${field}"]`);
@@ -534,12 +966,15 @@ function buildRow() {
   const secs = Object.keys(GROUPS);
   const block = document.createElement('div'); 
   block.className = 'ing-block bg-white border rounded-4 p-3 mb-3 shadow-sm';
+  block.dataset.libraryId = '';
+  block.dataset.unitDefinitions = '[]';
   
   // HTML synchronisé avec le bouton Pricing
   block.innerHTML = `
     <div class="row g-2 align-items-center mb-2 position-relative">
       <div class="col-12 col-md-4">
         <input class="form-control bg-light border-0 shadow-sm off-name-input fw-bold" name="ing_name" placeholder="ex. Farine, Eple..." autocomplete="off">
+        <input type="hidden" name="ing_library_id">
         <div class="off-dropdown list-group position-absolute w-100 shadow rounded-3 mt-1" style="display:none; z-index: 1000; max-height: 250px; overflow-y: auto;"></div>
       </div>
       <div class="col-6 col-md-2">
@@ -550,10 +985,12 @@ function buildRow() {
       </div>
       <div class="col-6 col-md-2 d-flex gap-1">
         <input class="form-control form-control-sm bg-light border-0 shadow-sm ing-qty-input text-end fw-bold text-accent" name="ing_qty" placeholder="100" type="number" min="0" step="any">
-        <select class="form-select form-select-sm bg-light border-0 shadow-sm ing-unit-input" name="ing_unit">
-          <option value="g" selected>g</option><option value="kg">kg</option><option value="ml">ml</option>
-          <option value="cas">c.à.s</option><option value="pièce">pièce</option><option value="pincée">pincée</option>
+        <select class="form-select form-select-sm bg-light border-0 shadow-sm ing-unit-input" name="ing_unit" data-selected-unit="g">
+          ${renderUnitOptions([], 'g')}
         </select>
+        <button type="button" class="btn btn-sm btn-info-subtle border border-info-subtle shadow-sm btn-add-unit text-info-emphasis" title="Ajouter une unité intelligente">
+          <i class="bi bi-plus-circle"></i>
+        </button>
       </div>
       <div class="col-12 col-md-4 d-flex justify-content-end gap-2">
         <button type="button" class="btn btn-sm btn-outline-success shadow-sm btn-pricing" title="Définir le prix">
@@ -587,13 +1024,17 @@ function buildRow() {
 
 // ── INITIALISATION ──
 document.querySelectorAll('.ing-block').forEach(block => {
+  let initialUnitDefinitions = [];
+  try {
+    initialUnitDefinitions = JSON.parse(block.dataset.unitDefinitions || '[]');
+  } catch (_) {}
+  applyUnitDefinitions(block, initialUnitDefinitions, block.querySelector('.ing-unit-input')?.dataset.selectedUnit || 'g');
   if (!block.dataset.per100g) {
     const qty = parseFloat(block.querySelector('.ing-qty-input')?.value) || 0;
     const unit = block.querySelector('.ing-unit-input')?.value || '';
-    const grams = toGrams(qty, unit);
-    const scale = grams !== null ? grams / 100 : (qty > 0 ? qty / 100 : 1);
+    const scale = qty > 0 ? toNutritionScale(block, qty, unit) : 1;
 
-    if (scale > 0) {
+    if (scale && scale > 0) {
       const per100g = {};
       let hasData = false;
       block.querySelectorAll('.nutr-input').forEach(inp => {
@@ -611,5 +1052,7 @@ document.getElementById('addIng').addEventListener('click', () => {
   document.getElementById('ingList').appendChild(r); 
   r.querySelector('input').focus();
 });
+
+initTagPicker();
 </script>
 {% endblock %}

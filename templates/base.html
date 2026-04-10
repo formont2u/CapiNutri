@@ -37,7 +37,7 @@
   </div>
   
   <nav>
-    <a href="{{ url_for('recipes.index') }}" class="{{ 'active' if request.endpoint == 'recipes.index' and not request.args.get('category') else '' }}">
+    <a href="{{ url_for('recipes.index') }}" class="{{ 'active' if request.endpoint == 'recipes.index' and not request.args.get('tag') else '' }}">
       <i class="bi bi-grid-fill"></i> Toutes les recettes
     </a>
     {{ nav_link('recipes.new_recipe', 'bi-plus-circle-fill', 'Nouvelle recette') }}
@@ -50,20 +50,11 @@
     <div class="nav-section">Données</div>
     {{ nav_link('planning.pantry', 'bi-box-seam', 'Garde-Manger') }}
     {{ nav_link('planning.shopping_list', 'bi-cart3', 'Liste de courses') }}
-    <a href="{{ url_for('library.library') }}" class="{{ 'active' if request.endpoint in ['library.library', 'library.library_edit'] else '' }}">
+    <a href="{{ url_for('library.library') }}" class="{{ 'active' if request.endpoint in ['library.library', 'library.library_edit', 'library.library_tags'] else '' }}">
       <i class="bi bi-bookmark-star-fill"></i> Bibliothèque
     </a>
     {{ nav_link('tracking.profile', 'bi-person-circle', 'Profil & Objectifs') }}
     
-    {% if categories %}
-      <div class="nav-section">Par catégorie</div>
-      {% for cat in categories %}
-        <a href="{{ url_for('recipes.index', category=cat) }}" class="cat-pill {{ 'active' if request.args.get('category') == cat else '' }}">
-          {{ cat }}
-        </a>
-      {% endfor %}
-    {% endif %}
-
     <div class="nav-section">Mon Compte</div>
     {% if current_user.is_authenticated %}
       <div class="px-3 mb-2 small text-muted">

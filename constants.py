@@ -24,8 +24,6 @@ GOAL_LABELS = {
     "bulk":     "Prise de masse (+15%)",
 }
 
-GOAL_MODIFIERS = {"maintain": 1.0, "cut": 0.80, "bulk": 1.15}
-
 MEAL_TYPES = {
     "breakfast": "Petit-déjeuner",
     "lunch":     "Déjeuner",

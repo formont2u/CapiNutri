@@ -25,10 +25,16 @@
     
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
       <div>
-        {% if recipe.category %}
-          <span class="badge border text-muted px-3 py-2 rounded-pill fw-bold mb-3" style="background-color: #f8f9fa;">
-            <i class="bi bi-tag-fill" style="color: var(--accent);"></i> {{ recipe.category }}
-          </span>
+        {% if recipe.tags %}
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          {% for tag_name in recipe.tags %}
+            {% set tag_meta = (all_tags | selectattr('name', 'equalto', tag_name) | list | first) %}
+            <span class="badge px-3 py-2 rounded-pill fw-bold d-inline-flex align-items-center gap-2"
+                  style="background-color: {{ tag_meta.color if tag_meta else '#f8f9fa' }}20; color: {{ tag_meta.color if tag_meta else '#495057' }}; border: 1px solid {{ tag_meta.color if tag_meta else '#dee2e6' }};">
+              <i class="bi {{ tag_meta.icon if tag_meta and tag_meta.icon else 'bi-tag-fill' }}"></i> {{ tag_name }}
+            </span>
+          {% endfor %}
+        </div>
         {% endif %}
         <h1 class="fw-bold mb-0 text-dark" style="font-size: 2.5rem; letter-spacing: -0.5px;">{{ recipe.name }}</h1>
       </div>

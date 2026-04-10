@@ -1,23 +1,26 @@
 """
-services/pricing.py — Logique métier pour le calcul des prix.
+services/pricing.py - Pricing logic with ingredient-aware unit conversion.
 """
 
-def calculate_cost(buy_qty: float, buy_unit: str, ref_price: float, ref_unit: str) -> float:
-    """Convertit l'unité de la recette vers l'unité du magasin pour calculer le prix exact."""
-    b_u = (buy_unit or "").lower().strip()
-    r_u = (ref_unit or "").lower().strip()
-    
-    if b_u == r_u: 
+from services.unit_conversion import convert_between_units
+
+
+def calculate_cost(
+    buy_qty: float,
+    buy_unit: str,
+    ref_price: float,
+    ref_unit: str,
+    unit_rows: list[dict] | None = None,
+) -> float:
+    """Convert recipe units to the shop reference unit when possible."""
+    recipe_unit = (buy_unit or "").lower().strip()
+    reference_unit = (ref_unit or "").lower().strip()
+
+    if recipe_unit == reference_unit:
         return buy_qty * ref_price
-    
-    # Grammes -> Kilo
-    if b_u in ['g', 'gr', 'gram'] and r_u in ['kg', 'kilo']: 
-        return (buy_qty / 1000.0) * ref_price
-    
-    # Ml/Cl/Dl -> Litre
-    if b_u in ['ml'] and r_u in ['l', 'litre']: return (buy_qty / 1000.0) * ref_price
-    if b_u in ['cl'] and r_u in ['l', 'litre']: return (buy_qty / 100.0) * ref_price
-    if b_u in ['dl'] and r_u in ['l', 'litre']: return (buy_qty / 10.0) * ref_price
-    
-    # Si on ne sait pas convertir, on applique le prix brut (Fallback)
+
+    converted_quantity = convert_between_units(buy_qty, recipe_unit, reference_unit, unit_rows)
+    if converted_quantity is not None:
+        return converted_quantity * ref_price
+
     return buy_qty * ref_price
