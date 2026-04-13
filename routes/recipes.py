@@ -19,9 +19,13 @@ recipes_bp = Blueprint("recipes", __name__)
 
 def _recipe_form_context(recipe=None):
     if recipe:
+        library_context_cache = {}
         for ingredient in recipe.ingredients:
-            ingredient.unit_definitions = crud.list_ingredient_units(ingredient.library_id) if ingredient.library_id else []
-            ingredient.density_g_ml = crud.get_library_density(ingredient.library_id) if ingredient.library_id else None
+            if ingredient.library_id and ingredient.library_id not in library_context_cache:
+                library_context_cache[ingredient.library_id] = crud.get_library_context(ingredient.library_id)
+            context = library_context_cache.get(ingredient.library_id, {})
+            ingredient.unit_definitions = context.get("unit_rows", [])
+            ingredient.density_g_ml = context.get("density_g_ml")
     return {
         "recipe": recipe,
         "all_tags": crud.list_tags(),
@@ -62,6 +66,7 @@ def view_recipe(recipe_id):
     best_prices = pricing_db.get_best_prices([ingredient.name for ingredient in recipe.ingredients])
 
     base_cost = 0.0
+    library_context_cache = {}
     for ingredient in recipe.ingredients:
         prices = best_prices.get(normalize_string(ingredient.name))
         ingredient.estimated_cost = 0.0
@@ -72,17 +77,20 @@ def view_recipe(recipe_id):
 
         best_price = prices[0]
         ingredient.cheapest_shop = best_price["shop_name"]
-        unit_rows = crud.list_ingredient_units(ingredient.library_id) if ingredient.library_id else []
-        density_g_ml = crud.get_library_density(ingredient.library_id) if ingredient.library_id else None
-        ingredient.estimated_cost = calculate_cost(
+        if ingredient.library_id and ingredient.library_id not in library_context_cache:
+            library_context_cache[ingredient.library_id] = crud.get_library_context(ingredient.library_id)
+        library_context = library_context_cache.get(ingredient.library_id, {})
+        estimated_cost = calculate_cost(
             ingredient.quantity,
             ingredient.unit,
             best_price["price"],
             best_price["ref_unit"],
-            unit_rows,
-            density_g_ml=density_g_ml,
+            library_context.get("unit_rows"),
+            density_g_ml=library_context.get("density_g_ml"),
         )
-        base_cost += ingredient.estimated_cost
+        if estimated_cost is not None:
+            ingredient.estimated_cost = estimated_cost
+            base_cost += estimated_cost
 
     cost_per_serving = base_cost / recipe.servings if recipe.servings > 0 else 0
     return render_template(
@@ -129,7 +137,6 @@ def edit_recipe(recipe_id):
 
     if request.method == "POST":
         recipe.name = request.form.get("name", "").strip()
-        recipe.category = None
         recipe.servings = float(request.form.get("servings", 1) or 1)
         recipe.instructions = request.form.get("instructions", "").strip()
         recipe.ingredients = parse_recipe_ingredients(request.form)

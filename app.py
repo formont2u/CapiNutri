@@ -69,4 +69,5 @@ if __name__ == "__main__":
     print("\n🍽  Capynutri running...")
     # debug sera True sur ton PC, mais False en production si on le configure
     is_debug = os.environ.get("FLASK_ENV") != "production"
-    app.run(host="0.0.0.0", debug=is_debug, port=5000)
+    port = int(os.environ.get("PORT", "5000"))
+    app.run(host="0.0.0.0", debug=is_debug, port=port)

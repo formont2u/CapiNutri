@@ -3,7 +3,7 @@
 
 {% block content %}
 
-<div class="d-flex align-items-center justify-content-between mb-4 pb-2 border-bottom">
+<div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between mb-4 pb-2 border-bottom gap-2">
     <div>
         <h2 class="mb-1 fw-bold text-dark"><i class="bi bi-basket3-fill text-accent"></i> Mon Garde-manger</h2>
         <span class="text-muted fw-bold">{{ items|length }} article{{ 's' if items|length != 1 }} en stock</span>
@@ -53,7 +53,7 @@
                 <h5 class="fw-bold text-secondary mb-3"><i class="bi bi-list-stars text-accent"></i> Inventaire actuel</h5>
                 
                 {% if items %}
-                <div class="table-responsive">
+                <div class="table-responsive d-none d-md-block">
                     <table class="table table-hover align-middle mb-0">
                         <thead class="small text-muted text-uppercase fw-bold">
                             <tr>
@@ -93,6 +93,35 @@
                             {% endfor %}
                         </tbody>
                     </table>
+                </div>
+
+                <div class="d-md-none d-grid gap-3">
+                    {% for item in items %}
+                    <div class="border rounded-4 p-3 bg-light pantry-row" data-id="{{ item.id }}">
+                        <div class="pantry-display">
+                            <div class="fw-bold text-dark mb-1">{{ item.name }}</div>
+                            <div class="small text-muted mb-3">
+                                {% if item.quantity %}{{ item.quantity|round(1) }}{% endif %} {{ item.unit or '' }}
+                            </div>
+                            <div class="d-grid gap-2">
+                                <button type="button" class="btn btn-sm btn-light border pantry-edit-btn"><i class="bi bi-pencil"></i> Modifier</button>
+                                <button type="button" onclick="confirmDeletePantry({{ item.id }}, '{{ item.name|replace("'", "\\'") }}')" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> Supprimer</button>
+                            </div>
+                        </div>
+
+                        <div class="pantry-edit-fields d-none">
+                            <input class="form-control form-control-sm pantry-edit-input mb-2 border-accent" name="edit_name" value="{{ item.name }}">
+                            <div class="d-flex gap-2 mb-3">
+                                <input class="form-control form-control-sm text-end" name="edit_quantity" type="number" step="any" value="{{ item.quantity or '' }}">
+                                <input class="form-control form-control-sm" name="edit_unit" value="{{ item.unit or '' }}">
+                            </div>
+                            <div class="d-grid gap-2">
+                                <button type="button" class="btn btn-sm btn-success pantry-save-btn" data-id="{{ item.id }}"><i class="bi bi-check-lg"></i> Enregistrer</button>
+                                <button type="button" class="btn btn-sm btn-light border pantry-cancel-btn"><i class="bi bi-x"></i> Annuler</button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
                 </div>
                 {% else %}
                 <div class="text-center py-4 text-muted">

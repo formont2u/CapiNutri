@@ -3,12 +3,68 @@
 
 {% block content %}
 
-<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+<style>
+@media (max-width: 767.98px) {
+  .recipe-title {
+    font-size: 1.9rem !important;
+    line-height: 1.1;
+  }
+
+  .recipe-actions {
+    width: 100%;
+  }
+
+  .recipe-actions .btn,
+  .recipe-actions form {
+    flex: 1 1 0;
+  }
+
+  .recipe-actions form .btn {
+    width: 100%;
+  }
+
+  .recipe-servings {
+    max-width: none !important;
+    width: 100%;
+    border-radius: 1.25rem !important;
+  }
+
+  .recipe-servings .form-range {
+    min-width: 0;
+  }
+
+  #ingTable .list-group-item {
+    align-items: flex-start !important;
+    gap: 12px;
+    flex-direction: column;
+  }
+
+  #ingTable .ing-qty {
+    align-self: flex-start;
+  }
+
+  .recipe-nutrition-head {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 12px;
+  }
+
+  .recipe-nutrition-head .btn-group {
+    width: 100%;
+  }
+
+  .recipe-nutrition-head .btn-group .btn {
+    flex: 1 1 0;
+  }
+}
+</style>
+
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-stretch align-items-md-center mb-4 gap-3">
   <a href="{{ url_for('recipes.index') }}" class="btn btn-light rounded-circle shadow-sm" title="Retour aux recettes">
     <i class="bi bi-arrow-left"></i>
   </a>
   
-  <div class="d-flex gap-2">
+  <div class="d-flex gap-2 recipe-actions">
     <a href="{{ url_for('recipes.edit_recipe', recipe_id=recipe.id) }}" class="btn btn-outline-dark rounded-pill fw-bold shadow-sm px-3">
       <i class="bi bi-pencil-fill"></i> <span class="d-none d-sm-inline">Modifier</span>
     </a>
@@ -36,10 +92,10 @@
           {% endfor %}
         </div>
         {% endif %}
-        <h1 class="fw-bold mb-0 text-dark" style="font-size: 2.5rem; letter-spacing: -0.5px;">{{ recipe.name }}</h1>
+        <h1 class="fw-bold mb-0 text-dark recipe-title" style="font-size: 2.5rem; letter-spacing: -0.5px;">{{ recipe.name }}</h1>
       </div>
 
-      <div class="d-flex flex-column align-items-end gap-2">
+      <div class="d-flex flex-column align-items-start align-items-md-end gap-2 w-100 w-md-auto">
         {% if nutri_data and nutri_data.grade %}
           {% set ns_colors = {'A': '#008b4c', 'B': '#80c23a', 'C': '#fecb02', 'D': '#f08100', 'E': '#e63e11'} %}
           <div class="badge rounded-pill shadow-sm px-3 py-2 d-flex align-items-center gap-2" style="background-color: {{ ns_colors[nutri_data.grade] }}; color: {{ '#fff' if nutri_data.grade in ['A','B','D','E'] else '#000' }}; font-size: 1rem;">
@@ -61,7 +117,7 @@
     </div>
 
     {% if recipe.ingredients %}
-    <div class="bg-light rounded-pill p-2 d-flex align-items-center gap-3 shadow-sm mt-4" style="max-width: 400px; border: 1px solid #ebebf0;">
+    <div class="bg-light rounded-pill p-2 d-flex align-items-center gap-3 shadow-sm mt-4 recipe-servings" style="max-width: 400px; border: 1px solid #ebebf0;">
       <div class="px-3 fw-bold text-muted small text-uppercase"><i class="bi bi-people-fill text-accent"></i> Portions</div>
       <button class="btn btn-white bg-white rounded-circle shadow-sm border" id="btnMinus" style="width:36px;height:36px;padding:0; flex-shrink: 0;">−</button>
       <input type="range" class="form-range" id="servingSlider" min="0.5" max="{{ [recipe.servings * 6, 20]|min }}" step="0.5" value="{{ servings }}">
@@ -104,7 +160,7 @@
     <div class="card border-0 shadow-sm rounded-4 bg-white" id="nutrPanel">
       <div class="card-body p-4">
         
-        <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-4 recipe-nutrition-head">
           <h5 class="fw-bold text-secondary mb-0"><i class="bi bi-fire text-accent"></i> Nutrition</h5>
           <div class="btn-group btn-group-sm shadow-sm" role="group">
             <button class="btn btn-outline-dark active nutr-view-btn fw-bold" data-view="total">Total</button>

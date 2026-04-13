@@ -99,18 +99,18 @@ def shopping_list(start=None):
     next_week = (start_d + timedelta(days=7)).isoformat()
 
     result = crud.get_week_shopping_list(current_user.id, start)
-    pantry_items = crud.list_pantry(current_user.id)
-    pantry_by_name = {normalize_string(item["name"]): item for item in pantry_items}
+    pantry_by_name = {}
+    for pantry_item in crud.list_pantry(current_user.id):
+        pantry_by_name.setdefault(normalize_string(pantry_item["name"]), []).append(pantry_item)
     price_data = pricing_db.get_best_prices([item["name"] for item in result["items"]])
 
     total_estimated_cost = 0.0
     for item in result["items"]:
-        pantry_item = pantry_by_name.get(normalize_string(item["name"]))
+        pantry_items = pantry_by_name.get(normalize_string(item["name"]), [])
         library_context = crud.get_library_context(item.get("library_id"), item["name"])
-        to_buy, in_stock = crud.split_quantity_by_stock(
+        to_buy, in_stock = crud.split_quantity_by_stocks(
             item["total_by_unit"],
-            pantry_item.get("quantity") if pantry_item else None,
-            pantry_item.get("unit", "") if pantry_item else "",
+            pantry_items,
             unit_rows=library_context.get("unit_rows"),
             density_g_ml=library_context.get("density_g_ml"),
         )
@@ -128,20 +128,19 @@ def shopping_list(start=None):
         if item["to_buy"] and item["prices"]:
             best_price = item["prices"][0]
             item["cheapest_shop"] = best_price["shop_name"]
-            item["estimated_cost"] = round(
-                sum(
-                    calculate_cost(
-                        quantity,
-                        unit,
-                        best_price["price"],
-                        best_price["ref_unit"],
-                        library_context.get("unit_rows"),
-                        density_g_ml=library_context.get("density_g_ml"),
-                    )
-                    for unit, quantity in item["to_buy"].items()
-                ),
-                2,
-            )
+            estimated_parts = []
+            for unit, quantity in item["to_buy"].items():
+                cost = calculate_cost(
+                    quantity,
+                    unit,
+                    best_price["price"],
+                    best_price["ref_unit"],
+                    library_context.get("unit_rows"),
+                    density_g_ml=library_context.get("density_g_ml"),
+                )
+                if cost is not None:
+                    estimated_parts.append(cost)
+            item["estimated_cost"] = round(sum(estimated_parts), 2) if estimated_parts else 0.0
             total_estimated_cost += item["estimated_cost"]
 
     result["total_estimated_cost"] = round(total_estimated_cost, 2)

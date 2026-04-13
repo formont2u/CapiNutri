@@ -55,6 +55,28 @@ py -3 app.py
 
 Then open [http://localhost:5000](http://localhost:5000).
 
+## Deploy To Render
+
+CapyNutri now includes a basic Render config in [render.yaml](/D:/Capynutri/render.yaml).
+
+Recommended setup on Render:
+- create a new Web Service from the GitHub repo
+- let Render detect `render.yaml`
+- keep the generated `FLASK_SECRET_KEY`
+- add `USDA_API_KEY` as an environment variable if you want USDA search in production
+
+Start command used by Render:
+
+```bash
+gunicorn --bind 0.0.0.0:$PORT app:app
+```
+
+Important limitation for now:
+- the app still uses local SQLite files
+- this is acceptable for short testing
+- it is not a durable production database strategy on Render
+- for a more reliable hosted version, the next step will be moving app data to Postgres
+
 ## Notes
 
 - The app expects a local `usda_key.txt` file for USDA API usage.

@@ -3,6 +3,46 @@
 
 {% block content %}
 
+<style>
+@media (max-width: 767.98px) {
+  .dashboard-header {
+    align-items: stretch !important;
+  }
+
+  .dashboard-header-main {
+    justify-content: space-between;
+  }
+
+  .dashboard-header-main h4 {
+    font-size: 1.05rem;
+    line-height: 1.2;
+  }
+
+  .dashboard-toggle-wrap {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .premium-toggle {
+    width: 100%;
+    min-width: 0 !important;
+  }
+
+  .dashboard-meal-row,
+  .dashboard-ex-row {
+    align-items: flex-start !important;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .dashboard-meal-meta,
+  .dashboard-ex-meta {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+</style>
+
 {% if goals.training and goals.rest %}
     {% set rest_k = goals.rest.kcal %}
     {% set train_k = goals.training.kcal %}
@@ -44,9 +84,9 @@
   </div>
 {% endmacro %}
 
-<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 pb-2 border-bottom gap-3">
+<div class="d-flex flex-column flex-lg-row justify-content-between align-items-stretch align-items-lg-center mb-4 pb-2 border-bottom gap-3 dashboard-header">
   
-  <div class="d-flex align-items-center gap-3">
+  <div class="d-flex align-items-center gap-3 dashboard-header-main">
     <a href="{{ url_for('tracking.dashboard', date_str=prev_day) }}" class="btn btn-light rounded-circle shadow-sm"><i class="bi bi-chevron-left"></i></a>
     <div class="text-center">
       <h4 class="mb-0 fw-bold" style="color: #2c3e50;">{{ d.strftime('%A %d %b %Y')|capitalize }}</h4>
@@ -117,7 +157,7 @@
   {% set f_rest = goals.rest.fat_g if goals.rest else (goals.fat_g or 60) %}
   {% set f_train = goals.training.fat_g if goals.training else (goals.fat_g or 60) %}
 
-  <div id="dashboard-data" 
+  <div id="dashboard-data" class="dashboard-toggle-wrap"
         data-consumed="{{ totals.kcal or 0 }}" 
         data-burned="{{ burned or 0 }}"
         data-rest-goal="{{ rest_k }}" 
@@ -292,12 +332,12 @@
             <h6 class="fw-bold text-dark border-bottom pb-2 mb-3"><i class="bi bi-clock text-muted"></i> {{ mt_label }}</h6>
             <div class="list-group list-group-flush">
               {% for e in meal_entries %}
-                <div class="list-group-item d-flex justify-content-between align-items-center border-0 bg-light rounded-3 mb-2 shadow-sm" id="log-row-{{ e.id }}">
+                <div class="list-group-item d-flex justify-content-between align-items-center border-0 bg-light rounded-3 mb-2 shadow-sm dashboard-meal-row" id="log-row-{{ e.id }}">
                   <div>
                     <span class="fw-bold">{{ e.label }}</span>
                     {% if e.servings != 1 %}<span class="badge bg-secondary ms-2">× {{ e.servings }}</span>{% endif %}
                   </div>
-                  <div class="d-flex align-items-center gap-3">
+                  <div class="d-flex align-items-center gap-3 dashboard-meal-meta">
                     <span class="fw-bold text-accent">{% if e.kcal %}{{ e.kcal|int }} kcal{% endif %}</span>
                     <button class="btn btn-sm btn-outline-danger border-0" onclick="deleteEntry({{ e.id }})" title="Supprimer">
                       <i class="bi bi-trash-fill"></i>
@@ -374,7 +414,7 @@
       {% if exercise %}
         <div class="list-group list-group-flush mb-2 mt-3">
           {% for ex in exercise %}
-            <div class="list-group-item d-flex justify-content-between align-items-center border-0 bg-light rounded-3 mb-2 shadow-sm p-3">
+            <div class="list-group-item d-flex justify-content-between align-items-center border-0 bg-light rounded-3 mb-2 shadow-sm p-3 dashboard-ex-row">
               <div>
                 {% if ex.exercise_type == 'musculation' %}
                   <i class="bi bi-align-bottom text-primary me-2"></i>
@@ -396,7 +436,7 @@
                 </div>
               </div>
               
-              <div class="d-flex align-items-center gap-3">
+              <div class="d-flex align-items-center gap-3 dashboard-ex-meta">
                 <span class="fw-bold text-accent fs-5">−{{ ex.kcal_burned|int }} <span class="fs-6 text-muted">kcal</span></span>
                 <form method="post" action="{{ url_for('tracking.log_exercise_delete', entry_id=ex.id) }}">
                   <input type="hidden" name="date_str" value="{{ date_str }}">

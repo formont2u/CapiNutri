@@ -183,6 +183,11 @@ def api_library_save():
     if not name or not per_100g:
         return jsonify({"ok": False, "error": "name and per_100g required"}), 400
     if library_id:
+        if density_g_ml not in (None, ""):
+            crud.update_library_density(
+                int(library_id),
+                float(density_g_ml),
+            )
         nutrition_api.library_increment(int(library_id))
         entry = crud.get_library_entry(int(library_id)) or {}
         return jsonify({

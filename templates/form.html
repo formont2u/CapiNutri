@@ -3,7 +3,71 @@
 
 {% block content %}
 
-<div class="d-flex align-items-center justify-content-between mb-4 pb-2 border-bottom">
+<style>
+@media (max-width: 767.98px) {
+  .recipe-form-header {
+    align-items: flex-start !important;
+  }
+
+  .recipe-form-header h3 {
+    font-size: 1.5rem;
+  }
+
+  .recipe-source-note {
+    align-items: flex-start !important;
+  }
+
+  .ingredient-toolbar {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+
+  .ingredient-toolbar > div:last-child {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .ing-source-toggle {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .ing-block .btn-pricing,
+  .ing-block .btn-nutr-toggle,
+  .ing-block .btn-remove-ing {
+    min-height: 42px;
+  }
+
+  .ing-block .btn-remove-ing {
+    width: 100%;
+  }
+
+  .nutr-section-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .nutr-section-tabs .nav-link {
+    white-space: nowrap;
+  }
+
+  .recipe-form-actions {
+    flex-direction: column-reverse;
+    position: sticky;
+    bottom: 78px;
+    z-index: 20;
+    background: linear-gradient(to top, rgba(247, 247, 249, 0.98), rgba(247, 247, 249, 0.88));
+    padding-top: 12px;
+  }
+
+  .recipe-form-actions .btn {
+    width: 100%;
+  }
+}
+</style>
+
+<div class="d-flex align-items-center justify-content-between mb-4 pb-2 border-bottom recipe-form-header">
   <div class="d-flex align-items-center gap-3">
     <a href="{{ url_for('recipes.view_recipe', recipe_id=recipe.id) if recipe else url_for('recipes.index') }}" class="btn btn-light rounded-circle shadow-sm">
       <i class="bi bi-arrow-left"></i>
@@ -14,7 +78,7 @@
   </div>
 </div>
 
-<div class="alert alert-info border-0 shadow-sm rounded-4 d-flex align-items-center gap-3 mb-4" style="background-color: #e3f2fd;">
+<div class="alert alert-info border-0 shadow-sm rounded-4 d-flex align-items-center gap-3 mb-4 recipe-source-note" style="background-color: #e3f2fd;">
   <i class="bi bi-database-fill-check fs-4 text-primary"></i>
   <span class="small text-dark">
     <strong>🥦 Brut</strong> → <a href="https://fdc.nal.usda.gov" target="_blank" class="fw-bold text-decoration-none">USDA</a> (rapide, 34 nutriments) &nbsp;·&nbsp;
@@ -73,7 +137,7 @@
 
   <div class="card border-0 shadow-sm rounded-4 p-4 mb-4 bg-white">
     
-    <div class="d-flex flex-wrap justify-content-between align-items-end mb-4 gap-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-end mb-4 gap-3 ingredient-toolbar">
       <div>
         <h5 class="fw-bold text-secondary mb-1"><i class="bi bi-basket text-success"></i> Ingrédients</h5>
         <small class="text-muted d-block"><i class="bi bi-search"></i> Tapez pour chercher un aliment en direct</small>
@@ -146,7 +210,7 @@
               </button>
             </div>
 
-            <div class="col-12 col-md-4 d-flex justify-content-end gap-2">
+            <div class="col-12 col-md-4 d-flex flex-wrap justify-content-end gap-2">
               <button type="button" class="btn btn-sm btn-outline-success shadow-sm btn-pricing" title="Définir le prix">
                   <i class="bi bi-tag-fill"></i> <span class="d-none d-lg-inline small">Prix</span>
               </button>
@@ -192,7 +256,7 @@
     </div>
   </div>
 
-  <div class="d-flex justify-content-end gap-3 mb-5">
+  <div class="d-flex justify-content-end gap-3 mb-5 recipe-form-actions">
     <a href="{{ url_for('recipes.view_recipe', recipe_id=recipe.id) if recipe else url_for('recipes.index') }}" class="btn btn-outline-secondary rounded-pill px-4 fw-bold shadow-sm">Annuler</a>
     <button type="submit" class="btn btn-accent rounded-pill px-5 fw-bold shadow-sm">
       <i class="bi bi-floppy"></i> {{ 'Sauvegarder modifications' if recipe else 'Créer la recette' }}

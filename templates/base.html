@@ -71,9 +71,47 @@
   <div class="sidebar-footer">Mode : Premium Architecture 🚀</div>
 </aside>
 
+<div id="mobileNavOverlay"></div>
+
+<header id="mobileTopbar" class="d-lg-none">
+  <button type="button" class="btn btn-light rounded-circle shadow-sm mobile-nav-toggle" id="mobileNavToggle" aria-label="Ouvrir le menu">
+    <i class="bi bi-list"></i>
+  </button>
+  <a href="{{ url_for('recipes.index') }}" class="mobile-brand text-decoration-none">
+    <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo Capynutri">
+    <span>Capynutri</span>
+  </a>
+  <a href="{{ url_for('recipes.new_recipe') }}" class="btn btn-accent rounded-circle shadow-sm mobile-quick-add" aria-label="Nouvelle recette">
+    <i class="bi bi-plus-lg"></i>
+  </a>
+</header>
+
 <main id="main">
   {% block content %}{% endblock %}
 </main>
+
+<nav id="mobileBottomNav" class="d-lg-none">
+  <a href="{{ url_for('tracking.dashboard') }}" class="{{ 'active' if request.endpoint == 'tracking.dashboard' else '' }}">
+    <i class="bi bi-activity"></i>
+    <span>Dashboard</span>
+  </a>
+  <a href="{{ url_for('planning.meal_plan') }}" class="{{ 'active' if request.endpoint == 'planning.meal_plan' else '' }}">
+    <i class="bi bi-calendar2-week-fill"></i>
+    <span>Plan</span>
+  </a>
+  <a href="{{ url_for('recipes.index') }}" class="{{ 'active' if request.endpoint == 'recipes.index' else '' }}">
+    <i class="bi bi-grid-fill"></i>
+    <span>Recettes</span>
+  </a>
+  <a href="{{ url_for('planning.shopping_list') }}" class="{{ 'active' if request.endpoint == 'planning.shopping_list' else '' }}">
+    <i class="bi bi-cart3"></i>
+    <span>Courses</span>
+  </a>
+  <a href="{{ url_for('planning.pantry') }}" class="{{ 'active' if request.endpoint == 'planning.pantry' else '' }}">
+    <i class="bi bi-box-seam"></i>
+    <span>Stock</span>
+  </a>
+</nav>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
@@ -108,5 +146,27 @@
 {% endwith %}
 
 {% block scripts %}{% endblock %}
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const body = document.body;
+    const toggle = document.getElementById('mobileNavToggle');
+    const overlay = document.getElementById('mobileNavOverlay');
+    const sidebar = document.getElementById('sidebar');
+
+    function closeMobileNav() {
+      body.classList.remove('nav-open');
+    }
+
+    toggle?.addEventListener('click', () => {
+      body.classList.toggle('nav-open');
+    });
+
+    overlay?.addEventListener('click', closeMobileNav);
+
+    sidebar?.querySelectorAll('a').forEach(link => {
+      link.addEventListener('click', closeMobileNav);
+    });
+  });
+</script>
 </body>
 </html>

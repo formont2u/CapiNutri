@@ -103,23 +103,6 @@ def save_profile(profile: UserProfile, user_id: int) -> None:
         )
 
 
-def get_or_create_category(name: str) -> int:
-    category_name = name.strip().title()
-    with get_connection() as conn:
-        row = conn.execute("SELECT id FROM categories WHERE name = ?", (category_name,)).fetchone()
-        return row["id"] if row else conn.execute("INSERT INTO categories (name) VALUES (?)", (category_name,)).lastrowid
-
-
-def list_categories() -> list[str]:
-    with get_connection() as conn:
-        return [row["name"] for row in conn.execute("SELECT name FROM categories ORDER BY name")]
-
-
-def delete_category(name: str) -> bool:
-    with get_connection() as conn:
-        return conn.execute("DELETE FROM categories WHERE name = ?", (name.title(),)).rowcount > 0
-
-
 def list_tags() -> list[dict]:
     with get_connection() as conn:
         return [dict(row) for row in conn.execute("SELECT id, name, color, icon FROM tags ORDER BY name")]
@@ -158,27 +141,6 @@ def ensure_default_tags() -> None:
                     "INSERT INTO tags (name, color, icon) VALUES (?, ?, ?)",
                     (tag["name"], tag["color"], tag["icon"]),
                 )
-
-
-def create_tag(name: str) -> Optional[int]:
-    cleaned = _clean_tag_name(name)
-    normalized = _normalize_tag_name(cleaned)
-    if not normalized:
-        return None
-
-    with get_connection() as conn:
-        row = conn.execute(
-            "SELECT id, name FROM tags WHERE lower(name) = lower(?)",
-            (cleaned,),
-        ).fetchone()
-        if row:
-            return row["id"]
-
-        display_name = cleaned.lower() if normalized in DEFAULT_TAG_NAMES else cleaned
-        return conn.execute(
-            "INSERT INTO tags (name) VALUES (?)",
-            (display_name,),
-        ).lastrowid
 
 
 def rename_tag(tag_id: int, new_name: str) -> bool:
@@ -239,11 +201,10 @@ def migrate_recipe_categories_to_tags() -> int:
 
 
 def add_recipe(recipe: Recipe) -> int:
-    category_id = get_or_create_category(recipe.category) if recipe.category else None
     with get_connection() as conn:
         recipe_id = conn.execute(
-            "INSERT INTO recipes (name, category_id, servings, instructions) VALUES (?, ?, ?, ?)",
-            (recipe.name.strip(), category_id, recipe.servings, recipe.instructions.strip()),
+            "INSERT INTO recipes (name, servings, instructions) VALUES (?, ?, ?)",
+            (recipe.name.strip(), recipe.servings, recipe.instructions.strip()),
         ).lastrowid
         _insert_ingredients(conn, recipe_id, recipe.ingredients)
         _set_recipe_tags(conn, recipe_id, recipe.tags)
@@ -254,11 +215,10 @@ def update_recipe(recipe: Recipe) -> bool:
     if recipe.id is None:
         return False
 
-    category_id = get_or_create_category(recipe.category) if recipe.category else None
     with get_connection() as conn:
         conn.execute(
-            "UPDATE recipes SET name = ?, category_id = ?, servings = ?, instructions = ? WHERE id = ?",
-            (recipe.name.strip(), category_id, recipe.servings, recipe.instructions.strip(), recipe.id),
+            "UPDATE recipes SET name = ?, servings = ?, instructions = ? WHERE id = ?",
+            (recipe.name.strip(), recipe.servings, recipe.instructions.strip(), recipe.id),
         )
         conn.execute("DELETE FROM ingredients WHERE recipe_id = ?", (recipe.id,))
         _insert_ingredients(conn, recipe.id, recipe.ingredients)
@@ -278,9 +238,8 @@ def get_recipe(recipe_id: int) -> Optional[Recipe]:
     with get_connection() as conn:
         row = conn.execute(
             """
-            SELECT r.id, r.name, r.servings, r.instructions, c.name AS category, r.category_id
+            SELECT r.id, r.name, r.servings, r.instructions
             FROM recipes r
-            LEFT JOIN categories c ON c.id = r.category_id
             WHERE r.id = ?
             """,
             (recipe_id,),
@@ -306,16 +265,14 @@ def get_recipe(recipe_id: int) -> Optional[Recipe]:
             name=row["name"],
             servings=row["servings"],
             instructions=row["instructions"] or "",
-            category=row["category"],
-            category_id=row["category_id"],
             tags=tags,
             ingredients=_fetch_ingredients(conn, recipe_id),
         )
 
 
-def list_recipes(category: Optional[str] = None, search: Optional[str] = None, tag: Optional[str] = None) -> list[dict]:
+def list_recipes(search: Optional[str] = None, tag: Optional[str] = None) -> list[dict]:
     query = """
-        SELECT r.id, r.name, r.servings, c.name AS category,
+        SELECT r.id, r.name, r.servings,
                ROUND(SUM(i.kcal), 0) AS total_kcal,
                ROUND(SUM(i.protein_g), 1) AS total_protein,
                ROUND(SUM(i.sugars_g), 1) AS total_sugars,
@@ -323,14 +280,10 @@ def list_recipes(category: Optional[str] = None, search: Optional[str] = None, t
                ROUND(SUM(i.saturated_g), 1) AS total_saturated,
                ROUND(SUM(i.sodium_mg), 1) AS total_sodium
         FROM recipes r
-        LEFT JOIN categories c ON c.id = r.category_id
         LEFT JOIN ingredients i ON i.recipe_id = r.id
         WHERE 1 = 1
     """
     params = []
-    if category:
-        query += " AND c.name = ?"
-        params.append(category.title())
     if search:
         query += " AND r.name LIKE ?"
         params.append(f"%{search}%")
@@ -717,32 +670,38 @@ def save_ingredient_to_library(name: str, brand: str, barcode: str, per_100g: di
         ).lastrowid
 
 
-def get_library_density(library_id: int) -> float | None:
-    with get_connection() as conn:
-        row = conn.execute("SELECT density_g_ml FROM ingredient_library WHERE id = ?", (library_id,)).fetchone()
-        return float(row["density_g_ml"]) if row and row["density_g_ml"] is not None else None
+def get_library_density(library_id: int, conn=None) -> float | None:
+    if conn is None:
+        with get_connection() as own_conn:
+            return get_library_density(library_id, conn=own_conn)
+
+    row = conn.execute("SELECT density_g_ml FROM ingredient_library WHERE id = ?", (library_id,)).fetchone()
+    return float(row["density_g_ml"]) if row and row["density_g_ml"] is not None else None
 
 
-def get_library_context(library_id: int | None = None, name: str = "") -> dict:
-    with get_connection() as conn:
-        row = None
-        if library_id:
-            row = conn.execute(
-                "SELECT id, density_g_ml FROM ingredient_library WHERE id = ?",
-                (library_id,),
-            ).fetchone()
-        elif name:
-            row = conn.execute(
-                "SELECT id, density_g_ml FROM ingredient_library WHERE search_key = ?",
-                (normalize_string(name),),
-            ).fetchone()
+def get_library_context(library_id: int | None = None, name: str = "", conn=None) -> dict:
+    if conn is None:
+        with get_connection() as own_conn:
+            return get_library_context(library_id, name, conn=own_conn)
 
-        resolved_id = row["id"] if row else library_id
-        return {
-            "library_id": resolved_id,
-            "density_g_ml": float(row["density_g_ml"]) if row and row["density_g_ml"] is not None else None,
-            "unit_rows": list_ingredient_units(resolved_id) if resolved_id else [],
-        }
+    row = None
+    if library_id:
+        row = conn.execute(
+            "SELECT id, density_g_ml FROM ingredient_library WHERE id = ?",
+            (library_id,),
+        ).fetchone()
+    elif name:
+        row = conn.execute(
+            "SELECT id, density_g_ml FROM ingredient_library WHERE search_key = ?",
+            (normalize_string(name),),
+        ).fetchone()
+
+    resolved_id = row["id"] if row else library_id
+    return {
+        "library_id": resolved_id,
+        "density_g_ml": float(row["density_g_ml"]) if row and row["density_g_ml"] is not None else None,
+        "unit_rows": list_ingredient_units(resolved_id, conn=conn) if resolved_id else [],
+    }
 
 
 def split_quantity_by_stock(
@@ -800,25 +759,68 @@ def split_quantity_by_stock(
     return to_buy, in_stock
 
 
+def split_quantity_by_stocks(
+    required_by_unit: dict[str, float],
+    pantry_items: list[dict] | None,
+    *,
+    unit_rows: list[dict] | None = None,
+    density_g_ml: float | None = None,
+) -> tuple[dict[str, float], dict[str, float]]:
+    remaining = {unit: float(quantity or 0) for unit, quantity in required_by_unit.items()}
+    covered_totals: dict[str, float] = {}
+
+    for pantry_item in pantry_items or []:
+        if not remaining:
+            break
+
+        to_buy, in_stock = split_quantity_by_stock(
+            remaining,
+            pantry_item.get("quantity"),
+            pantry_item.get("unit", ""),
+            unit_rows=unit_rows,
+            density_g_ml=density_g_ml,
+        )
+        for unit, covered in in_stock.items():
+            covered_totals[unit] = round(covered_totals.get(unit, 0.0) + covered, 4)
+        remaining = to_buy
+
+    return remaining, covered_totals
+
+
 def increment_library_usage(library_id: int) -> None:
     with get_connection() as conn:
         conn.execute("UPDATE ingredient_library SET used_count = used_count + 1 WHERE id = ?", (library_id,))
 
 
-def list_ingredient_units(library_id: int) -> list[dict]:
+def list_ingredient_units(library_id: int, conn=None) -> list[dict]:
+    if conn is None:
+        with get_connection() as own_conn:
+            return list_ingredient_units(library_id, conn=own_conn)
+
+    return [
+        dict(row)
+        for row in conn.execute(
+            """
+            SELECT id, library_id, unit_name, unit_key, grams_equivalent, ml_equivalent
+            FROM ingredient_units
+            WHERE library_id = ?
+            ORDER BY unit_name
+            """,
+            (library_id,),
+        )
+    ]
+
+
+def update_library_density(entry_id: int, density_g_ml: float | None) -> bool:
     with get_connection() as conn:
-        return [
-            dict(row)
-            for row in conn.execute(
-                """
-                SELECT id, library_id, unit_name, unit_key, grams_equivalent, ml_equivalent
-                FROM ingredient_units
-                WHERE library_id = ?
-                ORDER BY unit_name
-                """,
-                (library_id,),
-            )
-        ]
+        return conn.execute(
+            """
+            UPDATE ingredient_library
+            SET density_g_ml = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (density_g_ml, entry_id),
+        ).rowcount > 0
 
 
 def add_ingredient_unit(library_id: int, unit_name: str, grams_equivalent: float | None = None, ml_equivalent: float | None = None) -> int:
@@ -1112,13 +1114,18 @@ def get_week_shopping_list(user_id: int, start_date: str) -> dict:
             for row in ingredient_rows:
                 ingredients_by_recipe.setdefault(row["recipe_id"], []).append(dict(row))
 
+            library_context_cache: dict[tuple[int | None, str], dict] = {}
             for meal in meals:
                 for ingredient in ingredients_by_recipe.get(meal["recipe_id"], []):
                     name = ingredient["name"].strip()
                     key = normalize_string(name)
                     quantity = float(ingredient["quantity"] or 0)
                     unit = (ingredient["unit"] or "").strip().lower()
-                    library_context = get_library_context(ingredient.get("library_id"), name)
+                    context_key = (ingredient.get("library_id"), key)
+                    library_context = library_context_cache.get(context_key)
+                    if library_context is None:
+                        library_context = get_library_context(ingredient.get("library_id"), name, conn=conn)
+                        library_context_cache[context_key] = library_context
                     item = items.setdefault(
                         key,
                         {
@@ -1147,30 +1154,49 @@ def list_pantry(user_id: int) -> list[dict]:
 
 
 def add_pantry_item(user_id: int, name: str, quantity: Optional[float], unit: str) -> int:
+    stripped_name = name.strip()
+    normalized_name = normalize_string(stripped_name)
     with get_connection() as conn:
-        existing = conn.execute(
-            "SELECT id FROM pantry WHERE name = ? AND user_id = ?",
-            (name.strip(), user_id),
-        ).fetchone()
-        if existing:
+        existing_rows = conn.execute(
+            "SELECT id, name FROM pantry WHERE user_id = ? ORDER BY id",
+            (user_id,),
+        ).fetchall()
+        matching_rows = [row for row in existing_rows if normalize_string(row["name"]) == normalized_name]
+        if matching_rows:
+            primary_id = matching_rows[0]["id"]
             conn.execute(
                 "UPDATE pantry SET quantity = ?, unit = ? WHERE id = ?",
-                (quantity, unit.strip(), existing["id"]),
+                (quantity, unit.strip(), primary_id),
             )
-            return existing["id"]
+            conn.execute("UPDATE pantry SET name = ? WHERE id = ?", (stripped_name, primary_id))
+            for row in matching_rows[1:]:
+                conn.execute("DELETE FROM pantry WHERE id = ?", (row["id"],))
+            return primary_id
 
         return conn.execute(
             "INSERT INTO pantry (user_id, name, quantity, unit) VALUES (?, ?, ?, ?)",
-            (user_id, name.strip(), quantity, unit.strip()),
+            (user_id, stripped_name, quantity, unit.strip()),
         ).lastrowid
 
 
 def update_pantry_item(user_id: int, item_id: int, name: str, quantity: Optional[float], unit: str) -> bool:
     with get_connection() as conn:
-        return conn.execute(
+        updated = conn.execute(
             "UPDATE pantry SET name = ?, quantity = ?, unit = ? WHERE id = ? AND user_id = ?",
             (name.strip(), quantity, unit.strip(), item_id, user_id),
         ).rowcount > 0
+        if not updated:
+            return False
+
+        normalized_name = normalize_string(name)
+        duplicates = conn.execute(
+            "SELECT id, name FROM pantry WHERE user_id = ? AND id != ?",
+            (user_id, item_id),
+        ).fetchall()
+        for row in duplicates:
+            if normalize_string(row["name"]) == normalized_name:
+                conn.execute("DELETE FROM pantry WHERE id = ?", (row["id"],))
+        return True
 
 
 def delete_pantry_item(user_id: int, item_id: int) -> bool:
@@ -1179,12 +1205,13 @@ def delete_pantry_item(user_id: int, item_id: int) -> bool:
 
 
 def get_cookable_recipes(user_id: int) -> list[dict]:
-    pantry_stock = {}
+    pantry_stock: dict[str, list[dict]] = {}
     for item in list_pantry(user_id):
         key = normalize_string(item["name"])
-        pantry_stock[key] = dict(item)
+        pantry_stock.setdefault(key, []).append(dict(item))
 
     results = []
+    library_context_cache: dict[tuple[int | None, str], dict] = {}
     for recipe_summary in list_recipes():
         recipe = get_recipe(recipe_summary["id"])
         if not recipe:
@@ -1194,17 +1221,20 @@ def get_cookable_recipes(user_id: int) -> list[dict]:
         available_count = 0
         for ingredient in recipe.ingredients:
             key = normalize_string(ingredient.name)
-            pantry_item = pantry_stock.get(key)
-            if not pantry_item:
+            pantry_items = pantry_stock.get(key, [])
+            if not pantry_items:
                 missing.append(ingredient.name)
                 continue
 
-            library_context = get_library_context(ingredient.library_id, ingredient.name)
+            cache_key = (ingredient.library_id, normalize_string(ingredient.name))
+            library_context = library_context_cache.get(cache_key)
+            if library_context is None:
+                library_context = get_library_context(ingredient.library_id, ingredient.name)
+                library_context_cache[cache_key] = library_context
             required_by_unit = {(ingredient.unit or "").strip().lower(): float(ingredient.quantity or 0)}
-            to_buy, _ = split_quantity_by_stock(
+            to_buy, _ = split_quantity_by_stocks(
                 required_by_unit,
-                pantry_item.get("quantity"),
-                pantry_item.get("unit", ""),
+                pantry_items,
                 unit_rows=library_context.get("unit_rows"),
                 density_g_ml=library_context.get("density_g_ml"),
             )
@@ -1309,12 +1339,12 @@ def get_body_history(user_id: int, limit: int = 30) -> list[BodyTrackingEntry]:
             SELECT id, date_str, weight_kg, bf_pct
             FROM body_tracking
             WHERE user_id = ?
-            ORDER BY date_str ASC
+            ORDER BY date_str DESC
             LIMIT ?
             """,
             (user_id, limit),
         ).fetchall()
-        return [
+        history = [
             BodyTrackingEntry(
                 id=row["id"],
                 log_date=row["date_str"],
@@ -1323,3 +1353,5 @@ def get_body_history(user_id: int, limit: int = 30) -> list[BodyTrackingEntry]:
             )
             for row in rows
         ]
+        history.reverse()
+        return history

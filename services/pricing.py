@@ -12,10 +12,13 @@ def calculate_cost(
     ref_unit: str,
     unit_rows: list[dict] | None = None,
     density_g_ml: float | None = None,
-) -> float:
+) -> float | None:
     """Convert recipe units to the shop reference unit when possible."""
     recipe_unit = (buy_unit or "").lower().strip()
     reference_unit = (ref_unit or "").lower().strip()
+
+    if buy_qty is None or ref_price is None:
+        return None
 
     if recipe_unit == reference_unit:
         return buy_qty * ref_price
@@ -24,4 +27,4 @@ def calculate_cost(
     if converted_quantity is not None:
         return converted_quantity * ref_price
 
-    return buy_qty * ref_price
+    return None
