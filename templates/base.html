@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{% block title %}Capynutri{% endblock %}</title>
-  
+
   <style>
     @font-face {
       font-family: 'Radicalis';
@@ -17,7 +18,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
   <link rel="icon" href="{{ url_for('static', filename='logo.png') }}" type="image/png">
-  
+
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body>
@@ -35,40 +36,42 @@
       Capynutri
     </div>
   </div>
-  
+
   <nav>
     <a href="{{ url_for('recipes.index') }}" class="{{ 'active' if request.endpoint == 'recipes.index' and not request.args.get('tag') else '' }}">
       <i class="bi bi-grid-fill"></i> Toutes les recettes
     </a>
     {{ nav_link('recipes.new_recipe', 'bi-plus-circle-fill', 'Nouvelle recette') }}
-    
+
     <div class="nav-section">Planification</div>
     {{ nav_link('tracking.dashboard', 'bi-activity', 'Dashboard') }}
     {{ nav_link('planning.week_view', 'bi-calendar2-week-fill', 'Planning repas') }}
     {{ nav_link('tracking.week_stats', 'bi-bar-chart-fill', 'Stats semaine') }}
-    
-    <div class="nav-section">Données</div>
+
+    <div class="nav-section">Donnees</div>
     {{ nav_link('planning.pantry', 'bi-box-seam', 'Garde-Manger') }}
     {{ nav_link('planning.shopping_list', 'bi-cart3', 'Liste de courses') }}
     <a href="{{ url_for('library.library') }}" class="{{ 'active' if request.endpoint in ['library.library', 'library.library_edit', 'library.library_tags'] else '' }}">
-      <i class="bi bi-bookmark-star-fill"></i> Bibliothèque
+      <i class="bi bi-bookmark-star-fill"></i> Bibliotheque
     </a>
     {{ nav_link('tracking.profile', 'bi-person-circle', 'Profil & Objectifs') }}
-    
+
     <div class="nav-section">Mon Compte</div>
     {% if current_user.is_authenticated %}
       <div class="px-3 mb-2 small text-muted">
-        <i class="bi bi-person-check-fill text-success"></i> Connecté : <strong>{{ current_user.username }}</strong>
+        <i class="bi bi-person-check-fill text-success"></i> Connecte : <strong>{{ current_user.username }}</strong>
       </div>
-      <a href="{{ url_for('auth.logout') }}" class="text-danger">
-        <i class="bi bi-box-arrow-left"></i> Déconnexion
-      </a>
+      <form method="post" action="{{ url_for('auth.logout') }}" class="logout-form m-0">
+        <button type="submit" class="logout-button text-danger">
+          <i class="bi bi-box-arrow-left"></i> Deconnexion
+        </button>
+      </form>
     {% else %}
       {{ nav_link('auth.login', 'bi-box-arrow-in-right', 'Se connecter') }}
     {% endif %}
   </nav>
-  
-  <div class="sidebar-footer">Mode : Premium Architecture 🚀</div>
+
+  <div class="sidebar-footer">Mode : Premium Architecture</div>
 </aside>
 
 <div id="mobileNavOverlay"></div>
@@ -126,15 +129,13 @@
           timer: 4000,
           timerProgressBar: true,
           didOpen: (toast) => {
-            toast.addEventListener('mouseenter', Swal.stopTimer)
-            toast.addEventListener('mouseleave', Swal.resumeTimer)
+            toast.addEventListener('mouseenter', Swal.stopTimer);
+            toast.addEventListener('mouseleave', Swal.resumeTimer);
           }
         });
 
         {% for category, message in messages %}
-          // Mapping des catégories Flask vers les icônes SweetAlert2
           {% set swal_icon = 'success' if category == 'success' else 'error' if category == 'danger' or category == 'error' else 'warning' if category == 'warning' else 'info' %}
-          
           Toast.fire({
             icon: '{{ swal_icon }}',
             title: '{{ message | safe }}'
@@ -147,7 +148,45 @@
 
 {% block scripts %}{% endblock %}
 <script>
+  function getCsrfToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+  }
+
+  function ensurePostFormsHaveCsrf(root = document) {
+    root.querySelectorAll('form').forEach((form) => {
+      const method = (form.getAttribute('method') || 'get').toLowerCase();
+      if (method !== 'post') return;
+
+      let hidden = form.querySelector('input[name="csrf_token"]');
+      if (!hidden) {
+        hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.name = 'csrf_token';
+        form.appendChild(hidden);
+      }
+      hidden.value = getCsrfToken();
+    });
+  }
+
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = function(input, init = {}) {
+    const requestInit = { ...init };
+    const method = (requestInit.method || input?.method || 'GET').toUpperCase();
+    const url = typeof input === 'string' ? input : (input?.url || '');
+    const isSameOrigin = !url || url.startsWith('/') || url.startsWith(window.location.origin);
+
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && isSameOrigin) {
+      const headers = new Headers(requestInit.headers || input?.headers || {});
+      headers.set('X-CSRF-Token', getCsrfToken());
+      requestInit.headers = headers;
+    }
+
+    return originalFetch(input, requestInit);
+  };
+
   document.addEventListener('DOMContentLoaded', function () {
+    ensurePostFormsHaveCsrf();
+
     const body = document.body;
     const toggle = document.getElementById('mobileNavToggle');
     const overlay = document.getElementById('mobileNavOverlay');

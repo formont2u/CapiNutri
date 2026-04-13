@@ -2,5 +2,6 @@ venv/
 .env
 __pycache__/
 *.pyc
+*.db
 usda_key.txt
 fiche_identite.txt

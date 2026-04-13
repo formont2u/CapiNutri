@@ -5,6 +5,7 @@ import crud
 import pricing_db
 from constants import CARB_FIELDS, FAT_FIELDS, MACRO_FIELDS, MICRO_FIELDS, NUTRIENT_FIELDS, NUTRIENT_LABELS, USDA_FIELDS, VITAMIN_FIELDS
 from routes.form_utils import build_empty_library_entry, parse_library_nutrition
+from security import get_json_dict
 from services import nutrition_api
 from services.unit_conversion import STANDARD_UNITS
 from utils import normalize_string
@@ -174,7 +175,9 @@ def api_product_barcode(barcode):
 @library_bp.route("/api/library/save", methods=["POST"])
 @login_required
 def api_library_save():
-    data = request.get_json(force=True)
+    data = get_json_dict()
+    if data is None:
+        return jsonify({"ok": False, "error": "invalid_json"}), 400
     name = data.get("name", "").strip()
     per_100g = data.get("per_100g", {})
     library_id = data.get("library_id")
@@ -225,7 +228,9 @@ def api_library_units(entry_id):
 @library_bp.route("/api/library/<int:entry_id>/units", methods=["POST"])
 @login_required
 def api_library_units_create(entry_id):
-    data = request.get_json(force=True)
+    data = get_json_dict()
+    if data is None:
+        return jsonify({"ok": False, "error": "invalid_json"}), 400
     unit_name = (data.get("unit_name") or "").strip()
     grams_equivalent = data.get("grams_equivalent")
     ml_equivalent = data.get("ml_equivalent")

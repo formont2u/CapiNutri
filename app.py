@@ -11,6 +11,7 @@ from flask_login import LoginManager, current_user
 # Imports de la base et DB
 import db, crud, pricing_db
 from constants import MEAL_TYPES, NUTRIENT_LABELS, RDI, MACRO_FIELDS, CARB_FIELDS, FAT_FIELDS, MICRO_FIELDS, VITAMIN_FIELDS, USDA_FIELDS
+from security import configure_app_security, verify_csrf
 
 # Imports des Blueprints
 from routes.auth import auth_bp
@@ -20,7 +21,7 @@ from routes.planning import planning_bp
 from routes.library import library_bp
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-super-secret-key-pour-localhost")
+configure_app_security(app)
 PUBLIC_ENDPOINTS = {"auth.login", "auth.register", "static"}
 
 # ── Configuration de la Sécurité (Flask-Login) ──────────────────────────────
@@ -54,6 +55,11 @@ def require_login():
     if request.endpoint:
         return redirect(url_for('auth.login'))
     return None
+
+
+@app.before_request
+def enforce_csrf():
+    return verify_csrf()
 
 # ── Template globals ──────────────────────────────────────────────────────────
 app.jinja_env.globals.update(

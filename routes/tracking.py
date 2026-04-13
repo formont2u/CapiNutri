@@ -12,6 +12,7 @@ import crud
 from constants import ACTIVITY_LABELS, GOAL_LABELS, MEAL_TYPES, NUTRIENT_FIELDS
 from date_utils import format_month_label, format_weekday_label, start_of_week
 from models import ExerciseEntry, UserProfile
+from security import get_json_dict
 from services.nutrition import calculate_smart_strategy, get_effective_goals, sum_day_nutrition, sum_nutrients
 from utils import _f
 
@@ -276,7 +277,9 @@ def log_exercise_delete(entry_id):
 @tracking_bp.route("/api/body/log", methods=["POST"])
 @login_required
 def api_body_log():
-    data = request.get_json()
+    data = get_json_dict()
+    if data is None:
+        return jsonify({"error": "JSON invalide"}), 400
     date_str = data.get("date")
     weight = data.get("weight")
     bf = data.get("bf")

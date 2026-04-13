@@ -7,6 +7,7 @@ import crud
 import pricing_db
 from constants import MEAL_ICONS, MEAL_TYPES
 from date_utils import format_long_date, format_week_label, format_weekday_label, start_of_week
+from security import get_json_dict
 from services.nutrition import get_effective_goals, sum_nutrients
 from services.pricing import calculate_cost
 from utils import _f, normalize_string
@@ -221,7 +222,9 @@ def api_plan_suggest():
 @planning_bp.route("/api/plan/set", methods=["POST"])
 @login_required
 def api_plan_set():
-    data = request.get_json(force=True)
+    data = get_json_dict()
+    if data is None:
+        return jsonify({"ok": False, "error": "invalid_json"}), 400
     if not all([data.get("date"), data.get("meal_type"), data.get("recipe_id")]):
         return jsonify({"ok": False}), 400
 
@@ -241,7 +244,10 @@ def api_plan_set():
 @planning_bp.route("/api/plan/clear", methods=["POST"])
 @login_required
 def api_plan_clear():
-    plan_id = request.get_json(force=True).get("plan_id")
+    data = get_json_dict()
+    if data is None:
+        return jsonify({"ok": False, "error": "invalid_json"}), 400
+    plan_id = data.get("plan_id")
     if not plan_id:
         return jsonify({"ok": False}), 400
 
@@ -252,7 +258,9 @@ def api_plan_clear():
 @planning_bp.route("/api/plan/log", methods=["POST"])
 @login_required
 def api_plan_log():
-    data = request.get_json(force=True)
+    data = get_json_dict()
+    if data is None:
+        return jsonify({"ok": False, "error": "invalid_json"}), 400
     recipe_id = data.get("recipe_id")
     if not recipe_id:
         return jsonify({"ok": False}), 400
@@ -290,7 +298,10 @@ def api_plan_log():
 @planning_bp.route("/api/shopping/to_pantry", methods=["POST"])
 @login_required
 def api_shopping_to_pantry():
-    for item in request.get_json(force=True).get("items", []):
+    data = get_json_dict()
+    if data is None:
+        return jsonify({"ok": False, "error": "invalid_json"}), 400
+    for item in data.get("items", []):
         crud.add_pantry_item(current_user.id, item.get("name"), _f(item.get("quantity")), item.get("unit", ""))
     return jsonify({"ok": True})
 
@@ -298,7 +309,9 @@ def api_shopping_to_pantry():
 @planning_bp.route("/api/day/toggle_active", methods=["POST"])
 @login_required
 def toggle_day_active():
-    data = request.get_json()
+    data = get_json_dict()
+    if data is None:
+        return jsonify({"ok": False, "error": "invalid_json"}), 400
     date_str = data.get("date")
     is_active = data.get("is_active", False)
 

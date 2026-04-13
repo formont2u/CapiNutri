@@ -16,7 +16,8 @@ from urllib3.util.retry import Retry
 
 # ── IMPORTS PROPRES ──
 from constants import NUTRIENT_FIELDS
-import crud 
+import crud
+from security import is_production_env
 
 # ─────────────────────────────────────────────────────────────────────────────
 # USDA API key
@@ -43,7 +44,16 @@ def _load_usda_key() -> str:
     print("⚠️ usda_key.txt not found. Using DEMO_KEY (1000 req/day).")
     return "DEMO_KEY"
 
-USDA_API_KEY    = _load_usda_key()
+def _resolve_runtime_usda_key() -> str:
+    env_key = os.environ.get("USDA_API_KEY", "").strip()
+    if env_key:
+        return env_key
+    if is_production_env():
+        print("âš ï¸ USDA_API_KEY not found in production. Using DEMO_KEY.")
+        return "DEMO_KEY"
+    return _load_usda_key()
+
+USDA_API_KEY    = _resolve_runtime_usda_key()
 USDA_SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search"
 OFF_SEARCH_URL  = "https://world.openfoodfacts.org/cgi/search.pl"
 OFF_PRODUCT_URL = "https://world.openfoodfacts.org/api/v2/product/{barcode}"
