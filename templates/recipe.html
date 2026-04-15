@@ -251,20 +251,29 @@
 
   </div>
 
-  {% if recipe.instructions %}
+  {% if instruction_sections %}
   <div class="col-lg-7">
     <div class="card border-0 shadow-sm rounded-4 bg-white">
       <div class="card-body p-4 p-md-5">
         <h5 class="fw-bold text-secondary mb-4"><i class="bi bi-list-ol text-primary"></i> Préparation</h5>
-        <ol class="list-group list-group-numbered list-group-flush" style="font-size: 1.05rem; line-height: 1.6;">
-          {% for step in recipe.instructions.split('\n') %}
-            {% if step.strip() %}
-              <li class="list-group-item d-flex justify-content-between align-items-start border-0 py-3 px-0">
-                <div class="ms-2 me-auto text-dark">{{ step.strip() }}</div>
-              </li>
+        {% for section in instruction_sections %}
+          <div class="{{ 'mb-4' if not loop.last else '' }}">
+            {% if section.title %}
+              <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="badge rounded-pill bg-accent bg-opacity-10 text-accent border border-accent border-opacity-25 px-3 py-2 fw-bold">
+                  {{ section.title }}
+                </span>
+              </div>
             {% endif %}
-          {% endfor %}
-        </ol>
+            <ol class="list-group list-group-numbered list-group-flush" style="font-size: 1.05rem; line-height: 1.6;">
+              {% for step in section.steps %}
+                <li class="list-group-item d-flex justify-content-between align-items-start border-0 py-3 px-0">
+                  <div class="ms-2 me-auto text-dark">{{ step }}</div>
+                </li>
+              {% endfor %}
+            </ol>
+          </div>
+        {% endfor %}
       </div>
     </div>
   </div>

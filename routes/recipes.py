@@ -11,6 +11,7 @@ from models import Recipe
 from routes.form_utils import parse_recipe_ingredients
 from services.nutrition import get_recipe_nutrition_per_serving
 from services.pricing import calculate_cost
+from services.recipe_sections import parse_instruction_sections
 from services.unit_conversion import STANDARD_UNITS
 from utils import normalize_string
 
@@ -96,6 +97,7 @@ def view_recipe(recipe_id):
     return render_template(
         "recipe.html",
         recipe=recipe,
+        instruction_sections=parse_instruction_sections(recipe.instructions),
         servings=servings,
         scale=scale,
         base_cost=base_cost,
