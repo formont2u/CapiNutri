@@ -7,6 +7,7 @@ from pathlib import Path
 from constants import NUTRIENT_FIELDS
 
 DB_PATH = Path(__file__).parent / "recipes.db"
+LOCAL_DATA_ID = 1
 
 def get_connection() -> sqlite3.Connection:
     """Returns a connected SQLite database instance with foreign keys enabled."""
@@ -167,6 +168,13 @@ def init_db() -> None:
             );
             CREATE INDEX IF NOT EXISTS idx_plan_date ON meal_plan(plan_date);
         """)
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO users (id, username, password_hash)
+            VALUES (?, 'local', 'local-mode-no-password')
+            """,
+            (LOCAL_DATA_ID,),
+        )
     _run_migrations()
 
 def _run_migrations() -> None:

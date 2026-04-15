@@ -4,7 +4,7 @@
 
 ### Foundations
 - [x] Flask app structure with routes, services, templates, and SQLite storage
-- [x] Authentication and protected app flow
+- [x] Local-first single-device app flow
 - [x] Recipe CRUD with nutrition-aware ingredients
 - [x] Daily dashboard, food log, exercise log, and weekly stats
 - [x] Weekly meal planning, pantry, shopping list, and pricing database
@@ -83,7 +83,7 @@
 - [ ] Set up production configuration
   - environment variables and secrets handling
   - safer Flask config
-  - production server setup
+  - optional hosted server setup
   - database and file-path configuration
 - [ ] Automated tests
 - [ ] Backup / migration strategy for SQLite data

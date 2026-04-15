@@ -56,19 +56,13 @@
     </a>
     {{ nav_link('tracking.profile', 'bi-person-circle', 'Profil & Objectifs') }}
 
-    <div class="nav-section">Mon Compte</div>
-    {% if current_user.is_authenticated %}
-      <div class="px-3 mb-2 small text-muted">
-        <i class="bi bi-person-check-fill text-success"></i> Connecte : <strong>{{ current_user.username }}</strong>
-      </div>
-      <form method="post" action="{{ url_for('auth.logout') }}" class="logout-form m-0">
-        <button type="submit" class="logout-button text-danger">
-          <i class="bi bi-box-arrow-left"></i> Deconnexion
-        </button>
-      </form>
-    {% else %}
-      {{ nav_link('auth.login', 'bi-box-arrow-in-right', 'Se connecter') }}
-    {% endif %}
+    <div class="nav-section">Mode local</div>
+    <div class="px-3 mb-2 small text-muted">
+      <i class="bi bi-phone-fill text-success"></i> Donnees locales sur <strong>cet appareil</strong>
+    </div>
+    <div class="px-3 small text-muted">
+      <i class="bi bi-wifi-off"></i> Pas de compte requis
+    </div>
   </nav>
 
   <div class="sidebar-footer">Mode : Premium Architecture</div>

@@ -1,7 +1,6 @@
 from datetime import date, timedelta
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
-from flask_login import current_user, login_required
 
 import crud
 import pricing_db
@@ -17,7 +16,6 @@ planning_bp = Blueprint("planning", __name__)
 
 @planning_bp.route("/week")
 @planning_bp.route("/week/<start>")
-@login_required
 def week_view(start=None):
     if start is None:
         start = start_of_week().isoformat()
@@ -26,9 +24,9 @@ def week_view(start=None):
     prev_week = (start_d - timedelta(days=7)).isoformat()
     next_week = (start_d + timedelta(days=7)).isoformat()
 
-    week_plan = crud.get_week_dashboard(current_user.id, start)
-    goals = get_effective_goals(crud.get_profile(current_user.id))
-    active_statuses = crud.get_week_active_status(current_user.id, start)
+    week_plan = crud.get_week_dashboard(start)
+    goals = get_effective_goals(crud.get_profile())
+    active_statuses = crud.get_week_active_status(start)
     today_str = date.today().isoformat()
 
     days_display = []
@@ -57,15 +55,14 @@ def week_view(start=None):
 
 @planning_bp.route("/plan")
 @planning_bp.route("/plan/<date_str>")
-@login_required
 def meal_plan(date_str=None):
     today = date.today().isoformat()
     date_str = date_str or today
 
-    profile = crud.get_profile(current_user.id)
-    plan = crud.get_plan(current_user.id, date_str)
+    profile = crud.get_profile()
+    plan = crud.get_plan(date_str)
     recipes = crud.list_recipes()
-    is_active = crud.get_day_active_status(current_user.id, date_str)
+    is_active = crud.get_day_active_status(date_str)
 
     meals_per_day = getattr(profile, "meals_per_day", 3)
     active_slots = list(MEAL_TYPES.keys())[:meals_per_day]
@@ -90,7 +87,6 @@ def meal_plan(date_str=None):
 
 @planning_bp.route("/shopping")
 @planning_bp.route("/shopping/<start>")
-@login_required
 def shopping_list(start=None):
     if not start:
         start = start_of_week().isoformat()
@@ -99,9 +95,9 @@ def shopping_list(start=None):
     prev_week = (start_d - timedelta(days=7)).isoformat()
     next_week = (start_d + timedelta(days=7)).isoformat()
 
-    result = crud.get_week_shopping_list(current_user.id, start)
+    result = crud.get_week_shopping_list(start)
     pantry_by_name = {}
-    for pantry_item in crud.list_pantry(current_user.id):
+    for pantry_item in crud.list_pantry():
         pantry_by_name.setdefault(normalize_string(pantry_item["name"]), []).append(pantry_item)
     price_data = pricing_db.get_best_prices([item["name"] for item in result["items"]])
 
@@ -156,7 +152,6 @@ def shopping_list(start=None):
 
 
 @planning_bp.route("/pantry", methods=["GET", "POST"])
-@login_required
 def pantry():
     if request.method == "POST":
         action = request.form.get("action")
@@ -166,26 +161,25 @@ def pantry():
         item_id = int(request.form.get("item_id", 0))
 
         if action == "add" and name:
-            crud.add_pantry_item(current_user.id, name, _f(quantity), unit)
-            flash(f"'{name}' ajouté au garde-manger.", "success")
+            crud.add_pantry_item(name, _f(quantity), unit)
+            flash(f"'{name}' ajoute au garde-manger.", "success")
         elif action == "update" and item_id and name:
-            crud.update_pantry_item(current_user.id, item_id, name, _f(quantity), unit)
-            flash("Ingrédient mis à jour.", "info")
+            crud.update_pantry_item(item_id, name, _f(quantity), unit)
+            flash("Ingredient mis a jour.", "info")
         elif action == "delete" and item_id:
-            crud.delete_pantry_item(current_user.id, item_id)
-            flash("Ingrédient supprimé.", "info")
+            crud.delete_pantry_item(item_id)
+            flash("Ingredient supprime.", "info")
 
         return redirect(url_for("planning.pantry"))
 
     return render_template(
         "pantry.html",
-        items=crud.list_pantry(current_user.id),
-        cookable=crud.get_cookable_recipes(current_user.id),
+        items=crud.list_pantry(),
+        cookable=crud.get_cookable_recipes(),
     )
 
 
 @planning_bp.route("/pricing", methods=["GET", "POST"])
-@login_required
 def pricing_manager():
     if request.method == "POST":
         action = request.form.get("action")
@@ -196,12 +190,12 @@ def pricing_manager():
             unit = request.form.get("unit")
             if shop_id and name and price:
                 pricing_db.add_price(int(shop_id), name, float(price), unit)
-                flash(f"Prix ajouté pour {name} !", "success")
+                flash(f"Prix ajoute pour {name} !", "success")
         elif action == "delete_price":
             price_id = request.form.get("price_id")
             if price_id:
                 pricing_db.delete_price(int(price_id))
-                flash("Prix supprimé.", "info")
+                flash("Prix supprime.", "info")
 
         return redirect(url_for("planning.pricing_manager"))
 
@@ -209,18 +203,16 @@ def pricing_manager():
 
 
 @planning_bp.route("/api/plan/suggest")
-@login_required
 def api_plan_suggest():
     meal_type = request.args.get("meal_type", "lunch")
     date_str = request.args.get("date", date.today().isoformat())
-    suggestion = crud.suggest_recipe(current_user.id, meal_type, date_str)
+    suggestion = crud.suggest_recipe(meal_type, date_str)
     if not suggestion:
         return jsonify({"error": "no_recipes"}), 404
     return jsonify(suggestion)
 
 
 @planning_bp.route("/api/plan/set", methods=["POST"])
-@login_required
 def api_plan_set():
     data = get_json_dict()
     if data is None:
@@ -230,7 +222,6 @@ def api_plan_set():
 
     try:
         plan_id = crud.set_plan_slot(
-            current_user.id,
             data.get("date"),
             data.get("meal_type"),
             int(data.get("recipe_id")),
@@ -242,7 +233,6 @@ def api_plan_set():
 
 
 @planning_bp.route("/api/plan/clear", methods=["POST"])
-@login_required
 def api_plan_clear():
     data = get_json_dict()
     if data is None:
@@ -251,12 +241,11 @@ def api_plan_clear():
     if not plan_id:
         return jsonify({"ok": False}), 400
 
-    crud.clear_plan_slot(current_user.id, int(plan_id))
+    crud.clear_plan_slot(int(plan_id))
     return jsonify({"ok": True})
 
 
 @planning_bp.route("/api/plan/log", methods=["POST"])
-@login_required
 def api_plan_log():
     data = get_json_dict()
     if data is None:
@@ -273,7 +262,6 @@ def api_plan_log():
     nutrition = sum_nutrients(ingredient_nutrients) if ingredient_nutrients else {}
 
     crud.create_food_log(
-        user_id=current_user.id,
         label=recipe.name,
         servings=1.0,
         kcal=nutrition.get("kcal", 0),
@@ -290,24 +278,22 @@ def api_plan_log():
     )
 
     if data.get("plan_id"):
-        crud.mark_plan_logged(current_user.id, int(data.get("plan_id")))
+        crud.mark_plan_logged(int(data.get("plan_id")))
 
     return jsonify({"ok": True})
 
 
 @planning_bp.route("/api/shopping/to_pantry", methods=["POST"])
-@login_required
 def api_shopping_to_pantry():
     data = get_json_dict()
     if data is None:
         return jsonify({"ok": False, "error": "invalid_json"}), 400
     for item in data.get("items", []):
-        crud.add_pantry_item(current_user.id, item.get("name"), _f(item.get("quantity")), item.get("unit", ""))
+        crud.add_pantry_item(item.get("name"), _f(item.get("quantity")), item.get("unit", ""))
     return jsonify({"ok": True})
 
 
 @planning_bp.route("/api/day/toggle_active", methods=["POST"])
-@login_required
 def toggle_day_active():
     data = get_json_dict()
     if data is None:
@@ -318,5 +304,5 @@ def toggle_day_active():
     if not date_str:
         return jsonify({"ok": False}), 400
 
-    crud.set_day_active_status(current_user.id, date_str, is_active)
+    crud.set_day_active_status(date_str, is_active)
     return jsonify({"ok": True, "is_active": is_active})

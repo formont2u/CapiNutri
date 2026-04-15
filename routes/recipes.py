@@ -3,7 +3,6 @@ routes/recipe.py - Recipe catalogue and editor routes.
 """
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
-from flask_login import login_required
 
 import crud
 import pricing_db
@@ -36,7 +35,6 @@ def _recipe_form_context(recipe=None):
 
 
 @recipes_bp.route("/")
-@login_required
 def index():
     search = request.args.get("search", "")
     active_tag = request.args.get("tag", "")
@@ -55,7 +53,6 @@ def index():
 
 
 @recipes_bp.route("/recipe/<int:recipe_id>")
-@login_required
 def view_recipe(recipe_id):
     recipe = crud.get_recipe(recipe_id)
     if not recipe:
@@ -108,7 +105,6 @@ def view_recipe(recipe_id):
 
 
 @recipes_bp.route("/recipe/new", methods=["GET", "POST"])
-@login_required
 def new_recipe():
     if request.method == "POST":
         name = request.form.get("name", "").strip()
@@ -131,7 +127,6 @@ def new_recipe():
 
 
 @recipes_bp.route("/recipe/<int:recipe_id>/edit", methods=["GET", "POST"])
-@login_required
 def edit_recipe(recipe_id):
     recipe = crud.get_recipe(recipe_id)
     if not recipe:
@@ -152,7 +147,6 @@ def edit_recipe(recipe_id):
 
 
 @recipes_bp.route("/recipe/<int:recipe_id>/delete", methods=["POST"])
-@login_required
 def delete_recipe(recipe_id):
     recipe = crud.get_recipe(recipe_id)
     if recipe:
@@ -162,7 +156,6 @@ def delete_recipe(recipe_id):
 
 
 @recipes_bp.route("/recipe/<int:recipe_id>/duplicate", methods=["POST"])
-@login_required
 def duplicate_recipe_route(recipe_id):
     original = crud.get_recipe(recipe_id)
     if not original:
@@ -178,7 +171,6 @@ def duplicate_recipe_route(recipe_id):
 
 
 @recipes_bp.route("/api/recipe/<int:recipe_id>/nutrition", methods=["GET"])
-@login_required
 def api_recipe_nutrition(recipe_id):
     recipe = crud.get_recipe(recipe_id)
     if not recipe:

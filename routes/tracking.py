@@ -6,7 +6,6 @@ from dataclasses import asdict
 from datetime import date, timedelta
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
-from flask_login import current_user, login_required
 
 import crud
 from constants import ACTIVITY_LABELS, GOAL_LABELS, MEAL_TYPES, NUTRIENT_FIELDS
@@ -32,8 +31,8 @@ RPE_TO_MET = {
 }
 
 
-def _resolve_goals(user_id: int, date_str: str, profile) -> tuple[dict, dict | None]:
-    daily_goal = crud.get_daily_goal(user_id, date_str)
+def _resolve_goals(date_str: str, profile) -> tuple[dict, dict | None]:
+    daily_goal = crud.get_daily_goal(date_str)
     if daily_goal:
         return {
             "kcal": daily_goal["goal_kcal"],
@@ -46,18 +45,17 @@ def _resolve_goals(user_id: int, date_str: str, profile) -> tuple[dict, dict | N
 
 @tracking_bp.route("/dashboard")
 @tracking_bp.route("/dashboard/<date_str>")
-@login_required
 def dashboard(date_str=None):
     date_str = date_str or date.today().isoformat()
     current_day = date.fromisoformat(date_str)
 
-    entries = crud.get_food_log_day(current_user.id, date_str)
-    exercise = crud.get_exercise_day(current_user.id, date_str)
+    entries = crud.get_food_log_day(date_str)
+    exercise = crud.get_exercise_day(date_str)
     totals = sum_day_nutrition(entries)
     burned = sum(entry.kcal_burned for entry in exercise)
-    is_active = crud.get_day_active_status(current_user.id, date_str)
-    profile = crud.get_profile(current_user.id)
-    goals, daily_goal = _resolve_goals(current_user.id, date_str, profile)
+    is_active = crud.get_day_active_status(date_str)
+    profile = crud.get_profile()
+    goals, daily_goal = _resolve_goals(date_str, profile)
 
     by_meal = {meal_type: [] for meal_type in MEAL_TYPES}
     for entry in entries:
@@ -84,15 +82,14 @@ def dashboard(date_str=None):
 
 @tracking_bp.route("/stats/week")
 @tracking_bp.route("/stats/week/<start>")
-@login_required
 def week_stats(start=None):
     start = start or start_of_week().isoformat()
     start_d = date.fromisoformat(start)
     prev_week = (start_d - timedelta(days=7)).isoformat()
     next_week = (start_d + timedelta(days=7)).isoformat()
 
-    week_plan = crud.get_week_dashboard(current_user.id, start)
-    profile = crud.get_profile(current_user.id)
+    week_plan = crud.get_week_dashboard(start)
+    profile = crud.get_profile()
     goals = get_effective_goals(profile)
 
     days_stats = []
@@ -112,7 +109,7 @@ def week_stats(start=None):
             }
         )
 
-    body_history = crud.get_body_history(current_user.id, limit=30)
+    body_history = crud.get_body_history(limit=30)
     return render_template(
         "week.html",
         days=days_stats,
@@ -129,7 +126,6 @@ def week_stats(start=None):
 
 
 @tracking_bp.route("/profile", methods=["GET", "POST"])
-@login_required
 def profile():
     if request.method == "POST":
         form = request.form
@@ -146,11 +142,11 @@ def profile():
             goal_weight_kg=_f(form.get("goal_weight_kg")),
             goal_bf_pct=_f(form.get("goal_bf_pct")),
         )
-        crud.save_profile(profile_data, current_user.id)
-        flash("Profil scientifique mis à jour avec succès !", "success")
+        crud.save_profile(profile_data)
+        flash("Profil scientifique mis a jour avec succes !", "success")
         return redirect(url_for("tracking.profile"))
 
-    saved_profile = crud.get_profile(current_user.id)
+    saved_profile = crud.get_profile()
     return render_template(
         "profile.html",
         profile=saved_profile,
@@ -162,7 +158,6 @@ def profile():
 
 
 @tracking_bp.route("/log/food/add", methods=["POST"])
-@login_required
 def api_add_food():
     date_str = request.form.get("date_str", date.today().isoformat())
     recipe_id = request.form.get("recipe_id", "")
@@ -189,7 +184,6 @@ def api_add_food():
         return jsonify({"ok": False, "message": "Aliment invalide"}), 400
 
     entry_id = crud.create_food_log(
-        user_id=current_user.id,
         label=label,
         servings=servings,
         kcal=nutrients.get("kcal", 0),
@@ -211,13 +205,12 @@ def api_add_food():
 
 
 @tracking_bp.route("/api/log/delete/<int:entry_id>", methods=["POST"])
-@login_required
 def delete_log_entry(entry_id):
-    entry = crud.get_food_log_entry(current_user.id, entry_id)
+    entry = crud.get_food_log_entry(entry_id)
     if not entry:
         return jsonify({"ok": False}), 404
 
-    if crud.delete_food_log(current_user.id, entry_id):
+    if crud.delete_food_log(entry_id):
         data = asdict(entry)
         data["ok"] = True
         return jsonify(data)
@@ -226,15 +219,13 @@ def delete_log_entry(entry_id):
 
 
 @tracking_bp.route("/log/food/delete/<int:entry_id>", methods=["POST"])
-@login_required
 def log_food_delete(entry_id):
     date_str = request.form.get("date_str", date.today().isoformat())
-    crud.delete_food_log(current_user.id, entry_id)
+    crud.delete_food_log(entry_id)
     return redirect(url_for("tracking.dashboard", date_str=date_str))
 
 
 @tracking_bp.route("/log/exercise/add", methods=["POST"])
-@login_required
 def log_exercise_add():
     date_str = request.form.get("date_str", date.today().isoformat())
     name = request.form.get("name", "").strip()
@@ -243,12 +234,11 @@ def log_exercise_add():
     exercise_type = request.form.get("exercise_type", "cardio")
 
     if name and duration > 0:
-        profile = crud.get_profile(current_user.id)
+        profile = crud.get_profile()
         weight = profile.weight_kg if profile and profile.weight_kg else 70.0
         estimated_kcal = RPE_TO_MET.get(rpe, 6.0) * weight * (duration / 60.0)
 
         crud.add_exercise(
-            current_user.id,
             ExerciseEntry(
                 log_date=date_str,
                 name=name,
@@ -258,24 +248,22 @@ def log_exercise_add():
                 exercise_type=exercise_type,
             ),
         )
-        crud.set_day_active_status(current_user.id, date_str, True)
-        flash(f"Exercice '{name}' enregistré (~{int(estimated_kcal)} kcal estimées).", "success")
+        crud.set_day_active_status(date_str, True)
+        flash(f"Exercice '{name}' enregistre (~{int(estimated_kcal)} kcal estimees).", "success")
     else:
-        flash("Veuillez indiquer un nom et une durée en minutes.", "warning")
+        flash("Veuillez indiquer un nom et une duree en minutes.", "warning")
 
     return redirect(url_for("tracking.dashboard", date_str=date_str))
 
 
 @tracking_bp.route("/log/exercise/delete/<int:entry_id>", methods=["POST"])
-@login_required
 def log_exercise_delete(entry_id):
     date_str = request.form.get("date_str", date.today().isoformat())
-    crud.delete_exercise(current_user.id, entry_id)
+    crud.delete_exercise(entry_id)
     return redirect(url_for("tracking.dashboard", date_str=date_str))
 
 
 @tracking_bp.route("/api/body/log", methods=["POST"])
-@login_required
 def api_body_log():
     data = get_json_dict()
     if data is None:
@@ -289,18 +277,16 @@ def api_body_log():
 
     try:
         crud.log_body_metrics(
-            current_user.id,
             date_str,
             float(weight) if weight else None,
             float(bf) if bf else None,
         )
-        return jsonify({"ok": True, "message": "Mensurations enregistrées !"})
+        return jsonify({"ok": True, "message": "Mensurations enregistrees !"})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
 
 
 @tracking_bp.route("/log/goal/set", methods=["POST"])
-@login_required
 def log_goal_set():
     date_str = request.form.get("date_str", date.today().isoformat())
     kcal = _f(request.form.get("goal_kcal"))
@@ -309,10 +295,10 @@ def log_goal_set():
     fat = _f(request.form.get("goal_fat_g"))
 
     if kcal:
-        crud.set_daily_goal(current_user.id, date_str, kcal, protein or 0, carbs or 0, fat or 0)
-        flash("Objectif du jour mis à jour.", "success")
+        crud.set_daily_goal(date_str, kcal, protein or 0, carbs or 0, fat or 0)
+        flash("Objectif du jour mis a jour.", "success")
     else:
-        crud.delete_daily_goal(current_user.id, date_str)
-        flash("Objectif du jour réinitialisé.", "info")
+        crud.delete_daily_goal(date_str)
+        flash("Objectif du jour reinitialise.", "info")
 
     return redirect(url_for("tracking.dashboard", date_str=date_str))

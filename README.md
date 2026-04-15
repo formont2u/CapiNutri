@@ -2,6 +2,12 @@
 
 CapyNutri is a Flask-based personal nutrition and meal-planning app.
 
+The project is now local-first:
+- no remote infrastructure required
+- no account or login flow
+- one local dataset per device
+- designed to run on a PC and be reachable from a phone on the same network
+
 It combines:
 - recipe management
 - ingredient nutrition lookup
@@ -28,7 +34,6 @@ Main user flows already available:
 
 - Python
 - Flask
-- Flask-Login
 - SQLite
 - Bootstrap
 - Vanilla JavaScript
@@ -36,6 +41,7 @@ Main user flows already available:
 ## Project Structure
 
 - [app.py](/D:/Capynutri/app.py): Flask app entrypoint
+- [android-app](/D:/Capynutri/android-app): native Android prototype with Kotlin, Compose, Room, and SQLite
 - [routes](/D:/Capynutri/routes): route handlers / controllers
 - [services](/D:/Capynutri/services): business logic
 - [crud.py](/D:/Capynutri/crud.py): SQLite data-access layer
@@ -55,37 +61,34 @@ py -3 app.py
 
 Then open [http://localhost:5000](http://localhost:5000).
 
-## Deploy To Render
+The app opens directly in local mode. To test from a phone on the same Wi-Fi:
+- run the app on your PC
+- find your PC local IP with `ipconfig`
+- open `http://YOUR_PC_IP:5000` on the phone
 
-CapyNutri now includes a basic Render config in [render.yaml](/D:/Capynutri/render.yaml).
+## Android Prototype
 
-Recommended setup on Render:
-- create a new Web Service from the GitHub repo
-- let Render detect `render.yaml`
-- keep the generated `FLASK_SECRET_KEY`
-- add `USDA_API_KEY` as an environment variable if you want USDA search in production
+A first native Android prototype now lives in [android-app](/D:/Capynutri/android-app).
 
-Start command used by Render:
+Current Android prototype scope:
+- Room database stored locally on the device
+- Kotlin + Jetpack Compose foundation
+- recipe catalogue screen
+- planning screen
+- pantry screen
+- demo seed data
 
-```bash
-gunicorn --bind 0.0.0.0:$PORT app:app
-```
-
-Important limitation for now:
-- the app still uses local SQLite files
-- this is acceptable for short testing
-- it is not a durable production database strategy on Render
-- for a more reliable hosted version, the next step will be moving app data to Postgres
+Open [android-app](/D:/Capynutri/android-app) in Android Studio to sync and run it.
 
 ## Notes
 
-- The app expects a local `usda_key.txt` file for USDA API usage.
+- The app can read a local `usda_key.txt` file for USDA API usage.
 - The checked-in `venv` is likely machine-specific and should not be treated as the source of truth.
 - `recipes.db` and `pricing.db` are local SQLite files used by the app.
 
 ## Current Product Status
 
-CapyNutri is not at public production stage yet.
+CapyNutri is not aiming at public production right now.
 
 The strongest areas today are:
 - recipe flow
@@ -93,7 +96,7 @@ The strongest areas today are:
 - smart ingredient units
 - tags and planner suggestions
 
-The main next step before a private beta is tightening coherence between:
+The main next step is tightening coherence between:
 - pantry
 - shopping list
 - pricing

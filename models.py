@@ -5,7 +5,6 @@ La logique métier (algorithmes) a été séparée pour garder ce fichier propre
 
 from dataclasses import dataclass, field
 from typing import Optional
-from flask_login import UserMixin
 from constants import NUTRIENT_FIELDS
 
 # ── 1. Le Mixin Magique 
@@ -87,8 +86,6 @@ class Recipe:
     name: str
     servings: float = 1.0
     instructions: str = ""
-    category: Optional[str] = None
-    category_id: Optional[int] = None
     ingredients: list[Ingredient] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
     id: Optional[int] = None
@@ -98,16 +95,6 @@ class Recipe:
 
 
 # ── 3. Utilisateur et Profil ──────────────────────────────────────────────────
-
-@dataclass
-class User(UserMixin):
-    id: int
-    username: str
-    password_hash: str
-
-    def get_id(self):
-        return str(self.id)
-
 
 @dataclass
 class UserProfile:

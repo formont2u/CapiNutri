@@ -6,8 +6,8 @@ from dataclasses import fields
 from typing import Optional
 
 from constants import MEAL_TYPES, NUTRIENT_FIELDS
-from db import get_connection
-from models import BodyTrackingEntry, ExerciseEntry, FoodLogEntry, Ingredient, Recipe, User, UserProfile
+from db import LOCAL_DATA_ID, get_connection
+from models import BodyTrackingEntry, ExerciseEntry, FoodLogEntry, Ingredient, Recipe, UserProfile
 from services.unit_conversion import convert_between_units
 from utils import normalize_string
 
@@ -48,36 +48,15 @@ def _clean_tag_name(name: str) -> str:
 def _normalize_tag_name(name: str) -> str:
     return normalize_string(_clean_tag_name(name))
 
-
-def get_user_by_username(username: str) -> Optional[User]:
+def get_profile() -> UserProfile:
     with get_connection() as conn:
-        row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
-        return User(id=row["id"], username=row["username"], password_hash=row["password_hash"]) if row else None
-
-
-def get_user_by_id(user_id: int) -> Optional[User]:
-    with get_connection() as conn:
-        row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
-        return User(id=row["id"], username=row["username"], password_hash=row["password_hash"]) if row else None
-
-
-def create_user(username: str, password_hash: str) -> int:
-    with get_connection() as conn:
-        return conn.execute(
-            "INSERT INTO users (username, password_hash) VALUES (?, ?)",
-            (username, password_hash),
-        ).lastrowid
-
-
-def get_profile(user_id: int) -> UserProfile:
-    with get_connection() as conn:
-        row = conn.execute("SELECT * FROM user_profile WHERE user_id = ?", (user_id,)).fetchone()
+        row = conn.execute("SELECT * FROM user_profile WHERE user_id = ?", (LOCAL_DATA_ID,)).fetchone()
         return _row_to_dataclass(UserProfile, row) if row else UserProfile()
 
 
-def save_profile(profile: UserProfile, user_id: int) -> None:
+def save_profile(profile: UserProfile) -> None:
     with get_connection() as conn:
-        conn.execute("DELETE FROM user_profile WHERE user_id = ?", (user_id,))
+        conn.execute("DELETE FROM user_profile WHERE user_id = ?", (LOCAL_DATA_ID,))
         conn.execute(
             """
             INSERT INTO user_profile (
@@ -87,7 +66,7 @@ def save_profile(profile: UserProfile, user_id: int) -> None:
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                user_id,
+                LOCAL_DATA_ID,
                 profile.name,
                 profile.weight_kg,
                 profile.height_cm,
@@ -408,7 +387,6 @@ def _fetch_ingredients(conn, recipe_id: int) -> list[Ingredient]:
 
 
 def create_food_log(
-    user_id: int,
     label: str,
     servings: float,
     kcal: float,
@@ -432,7 +410,7 @@ def create_food_log(
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                user_id,
+                LOCAL_DATA_ID,
                 label,
                 servings,
                 kcal,
@@ -450,27 +428,27 @@ def create_food_log(
         ).lastrowid
 
 
-def get_food_log_day(user_id: int, date_str: str) -> list[FoodLogEntry]:
+def get_food_log_day(date_str: str) -> list[FoodLogEntry]:
     with get_connection() as conn:
         rows = conn.execute(
             "SELECT * FROM food_log WHERE user_id = ? AND log_date = ? ORDER BY id ASC",
-            (user_id, date_str),
+            (LOCAL_DATA_ID, date_str),
         ).fetchall()
         return [_row_to_dataclass(FoodLogEntry, row) for row in rows]
 
 
-def delete_food_log(user_id: int, entry_id: int) -> bool:
+def delete_food_log(entry_id: int) -> bool:
     with get_connection() as conn:
-        return conn.execute("DELETE FROM food_log WHERE id = ? AND user_id = ?", (entry_id, user_id)).rowcount > 0
+        return conn.execute("DELETE FROM food_log WHERE id = ? AND user_id = ?", (entry_id, LOCAL_DATA_ID)).rowcount > 0
 
 
-def get_food_log_entry(user_id: int, entry_id: int) -> Optional[FoodLogEntry]:
+def get_food_log_entry(entry_id: int) -> Optional[FoodLogEntry]:
     with get_connection() as conn:
-        row = conn.execute("SELECT * FROM food_log WHERE id = ? AND user_id = ?", (entry_id, user_id)).fetchone()
+        row = conn.execute("SELECT * FROM food_log WHERE id = ? AND user_id = ?", (entry_id, LOCAL_DATA_ID)).fetchone()
         return _row_to_dataclass(FoodLogEntry, row) if row else None
 
 
-def add_exercise(user_id: int, entry: ExerciseEntry) -> None:
+def add_exercise(entry: ExerciseEntry) -> None:
     with get_connection() as conn:
         conn.execute(
             """
@@ -478,7 +456,7 @@ def add_exercise(user_id: int, entry: ExerciseEntry) -> None:
             VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                user_id,
+                LOCAL_DATA_ID,
                 entry.log_date,
                 entry.name,
                 entry.kcal_burned,
@@ -489,11 +467,11 @@ def add_exercise(user_id: int, entry: ExerciseEntry) -> None:
         )
 
 
-def get_exercise_day(user_id: int, date_str: str) -> list[ExerciseEntry]:
+def get_exercise_day(date_str: str) -> list[ExerciseEntry]:
     with get_connection() as conn:
         rows = conn.execute(
             "SELECT * FROM exercise_log WHERE user_id = ? AND log_date = ?",
-            (user_id, date_str),
+            (LOCAL_DATA_ID, date_str),
         ).fetchall()
         return [
             ExerciseEntry(
@@ -509,25 +487,25 @@ def get_exercise_day(user_id: int, date_str: str) -> list[ExerciseEntry]:
         ]
 
 
-def delete_exercise(user_id: int, entry_id: int) -> bool:
+def delete_exercise(entry_id: int) -> bool:
     with get_connection() as conn:
-        return conn.execute("DELETE FROM exercise_log WHERE id = ? AND user_id = ?", (entry_id, user_id)).rowcount > 0
+        return conn.execute("DELETE FROM exercise_log WHERE id = ? AND user_id = ?", (entry_id, LOCAL_DATA_ID)).rowcount > 0
 
 
-def get_daily_goal(user_id: int, date_str: str) -> Optional[dict]:
+def get_daily_goal(date_str: str) -> Optional[dict]:
     with get_connection() as conn:
         row = conn.execute(
             "SELECT * FROM daily_goals WHERE user_id = ? AND goal_date = ?",
-            (user_id, date_str),
+            (LOCAL_DATA_ID, date_str),
         ).fetchone()
         return dict(row) if row else None
 
 
-def set_daily_goal(user_id: int, date_str: str, kcal: float, protein: float, carbs: float, fat: float) -> int:
+def set_daily_goal(date_str: str, kcal: float, protein: float, carbs: float, fat: float) -> int:
     with get_connection() as conn:
         existing = conn.execute(
             "SELECT id FROM daily_goals WHERE user_id = ? AND goal_date = ?",
-            (user_id, date_str),
+            (LOCAL_DATA_ID, date_str),
         ).fetchone()
         if existing:
             conn.execute(
@@ -545,15 +523,15 @@ def set_daily_goal(user_id: int, date_str: str, kcal: float, protein: float, car
             INSERT INTO daily_goals (user_id, goal_date, goal_kcal, goal_protein_g, goal_carbs_g, goal_fat_g)
             VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (user_id, date_str, kcal, protein, carbs, fat),
+            (LOCAL_DATA_ID, date_str, kcal, protein, carbs, fat),
         ).lastrowid
 
 
-def delete_daily_goal(user_id: int, date_str: str) -> bool:
+def delete_daily_goal(date_str: str) -> bool:
     with get_connection() as conn:
         return conn.execute(
             "DELETE FROM daily_goals WHERE user_id = ? AND goal_date = ?",
-            (user_id, date_str),
+            (LOCAL_DATA_ID, date_str),
         ).rowcount > 0
 
 
@@ -858,7 +836,7 @@ def delete_ingredient_unit(library_id: int, unit_id: int) -> bool:
         ).rowcount > 0
 
 
-def get_plan(user_id: int, date_str: str) -> dict:
+def get_plan(date_str: str) -> dict:
     with get_connection() as conn:
         rows = conn.execute(
             """
@@ -870,7 +848,7 @@ def get_plan(user_id: int, date_str: str) -> dict:
             WHERE mp.user_id = ? AND mp.plan_date = ?
             GROUP BY mp.id
             """,
-            (user_id, date_str),
+            (LOCAL_DATA_ID, date_str),
         ).fetchall()
 
     plan = {meal_type: None for meal_type in MEAL_TYPES}
@@ -879,7 +857,7 @@ def get_plan(user_id: int, date_str: str) -> dict:
     return plan
 
 
-def suggest_recipe(user_id: int, meal_type: str, date_str: str) -> Optional[dict]:
+def suggest_recipe(meal_type: str, date_str: str) -> Optional[dict]:
     with get_connection() as conn:
         rows = conn.execute(
             """
@@ -893,15 +871,15 @@ def suggest_recipe(user_id: int, meal_type: str, date_str: str) -> Optional[dict
             )
             GROUP BY r.id
             """,
-            (user_id, date_str),
+            (LOCAL_DATA_ID, date_str),
         ).fetchall()
         if not rows:
             return None
 
         meal_tag_keys = MEAL_TAG_ALIASES.get(_normalize_tag_name(meal_type), {_normalize_tag_name(meal_type)})
-        pantry_names = {normalize_string(item["name"]) for item in list_pantry(user_id)}
-        profile = get_profile(user_id)
-        is_active_day = get_day_active_status(user_id, date_str)
+        pantry_names = {normalize_string(item["name"]) for item in list_pantry()}
+        profile = get_profile()
+        is_active_day = get_day_active_status(date_str)
         recent_rows = conn.execute(
             """
             SELECT recipe_id, COUNT(*) AS usage_count, MAX(plan_date) AS last_used
@@ -909,7 +887,7 @@ def suggest_recipe(user_id: int, meal_type: str, date_str: str) -> Optional[dict
             WHERE user_id = ? AND plan_date >= date(?, '-14 days')
             GROUP BY recipe_id
             """,
-            (user_id, date_str),
+            (LOCAL_DATA_ID, date_str),
         ).fetchall()
         recent_usage = {
             row["recipe_id"]: {
@@ -997,36 +975,36 @@ def suggest_recipe(user_id: int, meal_type: str, date_str: str) -> Optional[dict
         return suggestion
 
 
-def set_plan_slot(user_id: int, date_str: str, meal_type: str, recipe_id: int) -> int:
+def set_plan_slot(date_str: str, meal_type: str, recipe_id: int) -> int:
     with get_connection() as conn:
         existing = conn.execute(
             "SELECT id FROM meal_plan WHERE user_id = ? AND plan_date = ? AND meal_type = ?",
-            (user_id, date_str, meal_type),
+            (LOCAL_DATA_ID, date_str, meal_type),
         ).fetchone()
         if existing:
             conn.execute(
                 "UPDATE meal_plan SET recipe_id = ?, is_logged = 0 WHERE id = ? AND user_id = ?",
-                (recipe_id, existing["id"], user_id),
+                (recipe_id, existing["id"], LOCAL_DATA_ID),
             )
             return existing["id"]
 
         return conn.execute(
             "INSERT INTO meal_plan (user_id, plan_date, meal_type, recipe_id) VALUES (?, ?, ?, ?)",
-            (user_id, date_str, meal_type, recipe_id),
+            (LOCAL_DATA_ID, date_str, meal_type, recipe_id),
         ).lastrowid
 
 
-def clear_plan_slot(user_id: int, plan_id: int) -> bool:
+def clear_plan_slot(plan_id: int) -> bool:
     with get_connection() as conn:
-        return conn.execute("DELETE FROM meal_plan WHERE id = ? AND user_id = ?", (plan_id, user_id)).rowcount > 0
+        return conn.execute("DELETE FROM meal_plan WHERE id = ? AND user_id = ?", (plan_id, LOCAL_DATA_ID)).rowcount > 0
 
 
-def mark_plan_logged(user_id: int, plan_id: int) -> None:
+def mark_plan_logged(plan_id: int) -> None:
     with get_connection() as conn:
-        conn.execute("UPDATE meal_plan SET is_logged = 1 WHERE id = ? AND user_id = ?", (plan_id, user_id))
+        conn.execute("UPDATE meal_plan SET is_logged = 1 WHERE id = ? AND user_id = ?", (plan_id, LOCAL_DATA_ID))
 
 
-def get_week_dashboard(user_id: int, start_date: str) -> dict:
+def get_week_dashboard(start_date: str) -> dict:
     from datetime import datetime, timedelta
 
     with get_connection() as conn:
@@ -1038,7 +1016,7 @@ def get_week_dashboard(user_id: int, start_date: str) -> dict:
             FROM food_log
             WHERE user_id = ? AND log_date >= ? AND log_date < date(?, '+7 days')
             """,
-            (user_id, start_date, start_date),
+            (LOCAL_DATA_ID, start_date, start_date),
         ).fetchall()
         exercise_rows = conn.execute(
             """
@@ -1047,7 +1025,7 @@ def get_week_dashboard(user_id: int, start_date: str) -> dict:
             WHERE user_id = ? AND log_date >= ? AND log_date < date(?, '+7 days')
             GROUP BY log_date
             """,
-            (user_id, start_date, start_date),
+            (LOCAL_DATA_ID, start_date, start_date),
         ).fetchall()
 
     start = datetime.strptime(start_date, "%Y-%m-%d").date()
@@ -1087,7 +1065,7 @@ def get_week_dashboard(user_id: int, start_date: str) -> dict:
     return week_plan
 
 
-def get_week_shopping_list(user_id: int, start_date: str) -> dict:
+def get_week_shopping_list(start_date: str) -> dict:
     with get_connection() as conn:
         meals = conn.execute(
             """
@@ -1097,7 +1075,7 @@ def get_week_shopping_list(user_id: int, start_date: str) -> dict:
             WHERE mp.user_id = ? AND mp.plan_date >= ? AND mp.plan_date < date(?, '+7 days')
             ORDER BY mp.plan_date ASC
             """,
-            (user_id, start_date, start_date),
+            (LOCAL_DATA_ID, start_date, start_date),
         ).fetchall()
         days_list = [dict(meal) for meal in meals]
 
@@ -1142,24 +1120,24 @@ def get_week_shopping_list(user_id: int, start_date: str) -> dict:
     return {"start_date": start_date, "days": days_list, "items": list(items.values())}
 
 
-def list_pantry(user_id: int) -> list[dict]:
+def list_pantry() -> list[dict]:
     with get_connection() as conn:
         return [
             dict(row)
             for row in conn.execute(
                 "SELECT id, name, quantity, unit FROM pantry WHERE user_id = ? ORDER BY name",
-                (user_id,),
+                (LOCAL_DATA_ID,),
             )
         ]
 
 
-def add_pantry_item(user_id: int, name: str, quantity: Optional[float], unit: str) -> int:
+def add_pantry_item(name: str, quantity: Optional[float], unit: str) -> int:
     stripped_name = name.strip()
     normalized_name = normalize_string(stripped_name)
     with get_connection() as conn:
         existing_rows = conn.execute(
             "SELECT id, name FROM pantry WHERE user_id = ? ORDER BY id",
-            (user_id,),
+            (LOCAL_DATA_ID,),
         ).fetchall()
         matching_rows = [row for row in existing_rows if normalize_string(row["name"]) == normalized_name]
         if matching_rows:
@@ -1175,15 +1153,15 @@ def add_pantry_item(user_id: int, name: str, quantity: Optional[float], unit: st
 
         return conn.execute(
             "INSERT INTO pantry (user_id, name, quantity, unit) VALUES (?, ?, ?, ?)",
-            (user_id, stripped_name, quantity, unit.strip()),
+            (LOCAL_DATA_ID, stripped_name, quantity, unit.strip()),
         ).lastrowid
 
 
-def update_pantry_item(user_id: int, item_id: int, name: str, quantity: Optional[float], unit: str) -> bool:
+def update_pantry_item(item_id: int, name: str, quantity: Optional[float], unit: str) -> bool:
     with get_connection() as conn:
         updated = conn.execute(
             "UPDATE pantry SET name = ?, quantity = ?, unit = ? WHERE id = ? AND user_id = ?",
-            (name.strip(), quantity, unit.strip(), item_id, user_id),
+            (name.strip(), quantity, unit.strip(), item_id, LOCAL_DATA_ID),
         ).rowcount > 0
         if not updated:
             return False
@@ -1191,7 +1169,7 @@ def update_pantry_item(user_id: int, item_id: int, name: str, quantity: Optional
         normalized_name = normalize_string(name)
         duplicates = conn.execute(
             "SELECT id, name FROM pantry WHERE user_id = ? AND id != ?",
-            (user_id, item_id),
+            (LOCAL_DATA_ID, item_id),
         ).fetchall()
         for row in duplicates:
             if normalize_string(row["name"]) == normalized_name:
@@ -1199,14 +1177,14 @@ def update_pantry_item(user_id: int, item_id: int, name: str, quantity: Optional
         return True
 
 
-def delete_pantry_item(user_id: int, item_id: int) -> bool:
+def delete_pantry_item(item_id: int) -> bool:
     with get_connection() as conn:
-        return conn.execute("DELETE FROM pantry WHERE id = ? AND user_id = ?", (item_id, user_id)).rowcount > 0
+        return conn.execute("DELETE FROM pantry WHERE id = ? AND user_id = ?", (item_id, LOCAL_DATA_ID)).rowcount > 0
 
 
-def get_cookable_recipes(user_id: int) -> list[dict]:
+def get_cookable_recipes() -> list[dict]:
     pantry_stock: dict[str, list[dict]] = {}
-    for item in list_pantry(user_id):
+    for item in list_pantry():
         key = normalize_string(item["name"])
         pantry_stock.setdefault(key, []).append(dict(item))
 
@@ -1263,7 +1241,7 @@ def get_cookable_recipes(user_id: int) -> list[dict]:
     return results
 
 
-def set_day_active_status(user_id: int, date_str: str, is_active: bool) -> None:
+def set_day_active_status(date_str: str, is_active: bool) -> None:
     with get_connection() as conn:
         conn.execute(
             """
@@ -1281,23 +1259,23 @@ def set_day_active_status(user_id: int, date_str: str, is_active: bool) -> None:
             VALUES (?, ?, ?)
             ON CONFLICT(user_id, date_str) DO UPDATE SET is_active = excluded.is_active
             """,
-            (user_id, date_str, int(is_active)),
+            (LOCAL_DATA_ID, date_str, int(is_active)),
         )
 
 
-def get_day_active_status(user_id: int, date_str: str) -> bool:
+def get_day_active_status(date_str: str) -> bool:
     with get_connection() as conn:
         try:
             row = conn.execute(
                 "SELECT is_active FROM daily_status WHERE user_id = ? AND date_str = ?",
-                (user_id, date_str),
+                (LOCAL_DATA_ID, date_str),
             ).fetchone()
             return bool(row["is_active"]) if row else False
         except Exception:
             return False
 
 
-def get_week_active_status(user_id: int, start_date: str) -> dict:
+def get_week_active_status(start_date: str) -> dict:
     with get_connection() as conn:
         try:
             rows = conn.execute(
@@ -1306,14 +1284,14 @@ def get_week_active_status(user_id: int, start_date: str) -> dict:
                 FROM daily_status
                 WHERE user_id = ? AND date_str >= ? AND date_str < date(?, '+7 days')
                 """,
-                (user_id, start_date, start_date),
+                (LOCAL_DATA_ID, start_date, start_date),
             ).fetchall()
             return {row["date_str"]: bool(row["is_active"]) for row in rows}
         except Exception:
             return {}
 
 
-def log_body_metrics(user_id: int, date_str: str, weight: float = None, bf: float = None) -> None:
+def log_body_metrics(date_str: str, weight: float = None, bf: float = None) -> None:
     with get_connection() as conn:
         conn.execute(
             """
@@ -1323,16 +1301,16 @@ def log_body_metrics(user_id: int, date_str: str, weight: float = None, bf: floa
                 weight_kg = excluded.weight_kg,
                 bf_pct = excluded.bf_pct
             """,
-            (user_id, date_str, weight, bf),
+            (LOCAL_DATA_ID, date_str, weight, bf),
         )
 
         if weight is not None:
-            conn.execute("UPDATE user_profile SET weight_kg = ? WHERE user_id = ?", (weight, user_id))
+            conn.execute("UPDATE user_profile SET weight_kg = ? WHERE user_id = ?", (weight, LOCAL_DATA_ID))
         if bf is not None:
-            conn.execute("UPDATE user_profile SET current_bf_pct = ? WHERE user_id = ?", (bf, user_id))
+            conn.execute("UPDATE user_profile SET current_bf_pct = ? WHERE user_id = ?", (bf, LOCAL_DATA_ID))
 
 
-def get_body_history(user_id: int, limit: int = 30) -> list[BodyTrackingEntry]:
+def get_body_history(limit: int = 30) -> list[BodyTrackingEntry]:
     with get_connection() as conn:
         rows = conn.execute(
             """
@@ -1342,7 +1320,7 @@ def get_body_history(user_id: int, limit: int = 30) -> list[BodyTrackingEntry]:
             ORDER BY date_str DESC
             LIMIT ?
             """,
-            (user_id, limit),
+            (LOCAL_DATA_ID, limit),
         ).fetchall()
         history = [
             BodyTrackingEntry(

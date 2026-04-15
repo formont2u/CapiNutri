@@ -1,5 +1,4 @@
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
-from flask_login import login_required
 
 import crud
 import pricing_db
@@ -32,14 +31,12 @@ def _library_template_context(entry, *, is_new: bool, **extra):
 
 
 @library_bp.route("/library")
-@login_required
 def library():
     search = request.args.get("q", "")
     return render_template("library.html", entries=crud.list_library(search=search), search=search)
 
 
 @library_bp.route("/library/tags", methods=["GET", "POST"])
-@login_required
 def library_tags():
     if request.method == "POST":
         action = request.form.get("action", "")
@@ -62,7 +59,6 @@ def library_tags():
 
 
 @library_bp.route("/library/add", methods=["GET", "POST"])
-@login_required
 def library_add():
     if request.method == "POST":
         nutrition_api.library_save(
@@ -82,7 +78,6 @@ def library_add():
 
 
 @library_bp.route("/library/<int:entry_id>/edit", methods=["GET", "POST"])
-@login_required
 def library_edit(entry_id):
     entry = crud.get_library_entry(entry_id)
     if not entry:
@@ -143,14 +138,12 @@ def library_edit(entry_id):
 
 
 @library_bp.route("/library/<int:entry_id>/delete", methods=["POST"])
-@login_required
 def library_delete(entry_id):
     crud.delete_library_entry(entry_id)
     return redirect(url_for("library.library"))
 
 
 @library_bp.route("/api/search_food")
-@login_required
 def api_search_food():
     query = request.args.get("q", "").strip()
     source = request.args.get("source", "usda")
@@ -162,7 +155,6 @@ def api_search_food():
 
 
 @library_bp.route("/api/product/<barcode>")
-@login_required
 def api_product_barcode(barcode):
     product = nutrition_api.get_by_barcode(barcode)
     if not product:
@@ -173,7 +165,6 @@ def api_product_barcode(barcode):
 
 
 @library_bp.route("/api/library/save", methods=["POST"])
-@login_required
 def api_library_save():
     data = get_json_dict()
     if data is None:
@@ -220,13 +211,11 @@ def api_library_save():
 
 
 @library_bp.route("/api/library/<int:entry_id>/units")
-@login_required
 def api_library_units(entry_id):
     return jsonify(crud.list_ingredient_units(entry_id))
 
 
 @library_bp.route("/api/library/<int:entry_id>/units", methods=["POST"])
-@login_required
 def api_library_units_create(entry_id):
     data = get_json_dict()
     if data is None:
@@ -248,7 +237,6 @@ def api_library_units_create(entry_id):
 
 
 @library_bp.route("/api/library/search")
-@login_required
 def api_library_search():
     query = request.args.get("q", "").strip()
     if len(query) < 2:

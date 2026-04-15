@@ -5,3 +5,9 @@ __pycache__/
 *.db
 usda_key.txt
 fiche_identite.txt
+.gradle/
+.idea/
+*.iml
+android-app/.gradle/
+android-app/build/
+android-app/app/build/
